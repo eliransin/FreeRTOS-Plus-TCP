@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "Zynq/x_emacpsif.h"
+
 /* FreeRTOS includes. */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -32,11 +34,8 @@
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_IP_Private.h"
 #include "NetworkBufferManagement.h"
-#include "NetworkInterface.h"
 
-#include "Zynq/x_emacpsif.h"
-
-extern TaskHandle_t xEMACTaskHandle;
+extern TaskHandle_t xEMACTaskHandles[ XPAR_XEMACPS_NUM_INSTANCES ];
 
 /*** IMPORTANT: Define PEEP in xemacpsif.h and sys_arch_raw.c
  *** to run it on a PEEP board
@@ -47,81 +46,76 @@ void setup_isr( xemacpsif_s *xemacpsif )
 	/*
 	 * Setup callbacks
 	 */
-	XEmacPs_SetHandler( &xemacpsif->emacps, XEMACPS_HANDLER_DMASEND,
-						( void * ) emacps_send_handler,
-						( void * ) xemacpsif );
+	XEmacPs_SetHandler(&xemacpsif->emacps, XEMACPS_HANDLER_DMASEND,
+		(void *) emacps_send_handler,
+		(void *) xemacpsif);
 
-	XEmacPs_SetHandler( &xemacpsif->emacps, XEMACPS_HANDLER_DMARECV,
-						( void * ) emacps_recv_handler,
-						( void * ) xemacpsif );
+	XEmacPs_SetHandler(&xemacpsif->emacps, XEMACPS_HANDLER_DMARECV,
+		(void *) emacps_recv_handler,
+		(void *) xemacpsif);
 
-	XEmacPs_SetHandler( &xemacpsif->emacps, XEMACPS_HANDLER_ERROR,
-						( void * ) emacps_error_handler,
-						( void * ) xemacpsif );
+	XEmacPs_SetHandler(&xemacpsif->emacps, XEMACPS_HANDLER_ERROR,
+		(void *) emacps_error_handler,
+		(void *) xemacpsif);
 }
 
-void start_emacps( xemacpsif_s *xemacps )
+void start_emacps (xemacpsif_s *xemacps)
 {
 	/* start the temac */
-	XEmacPs_Start( &xemacps->emacps );
+	XEmacPs_Start(&xemacps->emacps);
 }
 
-extern struct xtopology_t xXTopology;
 
 volatile int error_msg_count = 0;
 volatile const char *last_err_msg = "";
 
-struct xERROR_MSG
-{
-void *arg;
-u8 Direction;
-u32 ErrorWord;
+struct xERROR_MSG {
+	void *arg;
+	u8 Direction;
+	u32 ErrorWord;
 };
 
 static struct xERROR_MSG xErrorList[ 8 ];
 static BaseType_t xErrorHead, xErrorTail;
 
-void emacps_error_handler( void *arg,
-						   u8 Direction,
-						   u32 ErrorWord )
+void emacps_error_handler(void *arg, u8 Direction, u32 ErrorWord)
 {
-BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-xemacpsif_s *xemacpsif;
-BaseType_t xNextHead = xErrorHead;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	xemacpsif_s *xemacpsif;
+	BaseType_t xNextHead = xErrorHead;
+	BaseType_t xEMACIndex;
 
-	xemacpsif = ( xemacpsif_s * ) ( arg );
+	xemacpsif = (xemacpsif_s *)(arg);
+	xEMACIndex = xemacpsif->emacps.Config.DeviceId;
 
-	if( ( Direction != XEMACPS_SEND ) || ( ErrorWord != XEMACPS_TXSR_USEDREAD_MASK ) )
+	if( ( Direction != XEMACPS_SEND ) || (ErrorWord != XEMACPS_TXSR_USEDREAD_MASK ) )
 	{
 		if( ++xNextHead == ( sizeof( xErrorList ) / sizeof( xErrorList[ 0 ] ) ) )
-		{
 			xNextHead = 0;
-		}
-
 		if( xNextHead != xErrorTail )
 		{
+
 			xErrorList[ xErrorHead ].arg = arg;
 			xErrorList[ xErrorHead ].Direction = Direction;
 			xErrorList[ xErrorHead ].ErrorWord = ErrorWord;
 
 			xErrorHead = xNextHead;
 
-			xemacpsif = ( xemacpsif_s * ) ( arg );
+			xemacpsif = (xemacpsif_s *)(arg);
 			xemacpsif->isr_events |= EMAC_IF_ERR_EVENT;
 		}
 
-		if( xEMACTaskHandle != NULL )
+		if( xEMACTaskHandles[ xEMACIndex ] != NULL )
 		{
-			vTaskNotifyGiveFromISR( xEMACTaskHandle, &xHigherPriorityTaskWoken );
+			vTaskNotifyGiveFromISR( xEMACTaskHandles[ xEMACIndex ], &xHigherPriorityTaskWoken );
 		}
+
 	}
 
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-static void emacps_handle_error( void *arg,
-								 u8 Direction,
-								 u32 ErrorWord );
+static void emacps_handle_error(void *arg, u8 Direction, u32 ErrorWord);
 
 int emacps_check_errors( xemacpsif_s *xemacps )
 {
@@ -145,89 +139,72 @@ int xResult;
 	return xResult;
 }
 
-static void emacps_handle_error( void *arg,
-								 u8 Direction,
-								 u32 ErrorWord )
+/* Call xZynqNetworkInterfaceInitialise() in case only the EMAC index is known. */
+void vInitialiseOnIndex( int iEMACIndex );
+
+static void emacps_handle_error(void *arg, u8 Direction, u32 ErrorWord)
 {
-xemacpsif_s *xemacpsif;
-	struct xtopology_t *xtopologyp;
+	xemacpsif_s   *xemacpsif;
 	XEmacPs *xemacps;
+	BaseType_t xEMACIndex;
 
-	xemacpsif = ( xemacpsif_s * ) ( arg );
-
-	xtopologyp = &xXTopology;
+	xemacpsif = (xemacpsif_s *)(arg);
 
 	xemacps = &xemacpsif->emacps;
-
-	/* Do not appear to be used. */
-	( void ) xemacps;
-	( void ) xtopologyp;
+	xEMACIndex = xemacps->Config.DeviceId;
 
 	last_err_msg = NULL;
 
 	if( ErrorWord != 0 )
 	{
-		switch( Direction )
-		{
-			case XEMACPS_RECV:
-
-				if( ( ErrorWord & XEMACPS_RXSR_HRESPNOK_MASK ) != 0 )
-				{
-					last_err_msg = "Receive DMA error";
-					xNetworkInterfaceInitialise();
-				}
-
-				if( ( ErrorWord & XEMACPS_RXSR_RXOVR_MASK ) != 0 )
-				{
-					last_err_msg = "Receive over run";
-					emacps_recv_handler( arg );
-				}
-
-				if( ( ErrorWord & XEMACPS_RXSR_BUFFNA_MASK ) != 0 )
-				{
-					last_err_msg = "Receive buffer not available";
-					emacps_recv_handler( arg );
-				}
-
-				break;
-
-			case XEMACPS_SEND:
-
-				if( ( ErrorWord & XEMACPS_TXSR_HRESPNOK_MASK ) != 0 )
-				{
-					last_err_msg = "Transmit DMA error";
-					xNetworkInterfaceInitialise();
-				}
-
-				if( ( ErrorWord & XEMACPS_TXSR_URUN_MASK ) != 0 )
-				{
-					last_err_msg = "Transmit under run";
-					HandleTxErrors( xemacpsif );
-				}
-
-				if( ( ErrorWord & XEMACPS_TXSR_BUFEXH_MASK ) != 0 )
-				{
-					last_err_msg = "Transmit buffer exhausted";
-					HandleTxErrors( xemacpsif );
-				}
-
-				if( ( ErrorWord & XEMACPS_TXSR_RXOVR_MASK ) != 0 )
-				{
-					last_err_msg = "Transmit retry excessed limits";
-					HandleTxErrors( xemacpsif );
-				}
-
-				if( ( ErrorWord & XEMACPS_TXSR_FRAMERX_MASK ) != 0 )
-				{
-					last_err_msg = "Transmit collision";
-					emacps_check_tx( xemacpsif );
-				}
-
-				break;
+		switch (Direction) {
+		case XEMACPS_RECV:
+			if( ( ErrorWord & XEMACPS_RXSR_HRESPNOK_MASK ) != 0 )
+			{
+				last_err_msg = "Receive DMA error";
+				vInitialiseOnIndex( xEMACIndex );
+			}
+			if( ( ErrorWord & XEMACPS_RXSR_RXOVR_MASK ) != 0 )
+			{
+				last_err_msg = "Receive over run";
+				emacps_recv_handler(arg);
+			}
+			if( ( ErrorWord & XEMACPS_RXSR_BUFFNA_MASK ) != 0 )
+			{
+				last_err_msg = "Receive buffer not available";
+				emacps_recv_handler(arg);
+			}
+			break;
+		case XEMACPS_SEND:
+			if( ( ErrorWord & XEMACPS_TXSR_HRESPNOK_MASK ) != 0 )
+			{
+				last_err_msg = "Transmit DMA error";
+				vInitialiseOnIndex( xEMACIndex );
+			}
+			if( ( ErrorWord & XEMACPS_TXSR_URUN_MASK ) != 0 )
+			{
+				last_err_msg = "Transmit under run";
+				HandleTxErrors( xemacpsif );
+			}
+			if( ( ErrorWord & XEMACPS_TXSR_BUFEXH_MASK ) != 0 )
+			{
+				last_err_msg = "Transmit buffer exhausted";
+				HandleTxErrors( xemacpsif );
+			}
+			if( ( ErrorWord & XEMACPS_TXSR_RXOVR_MASK ) != 0 )
+			{
+				last_err_msg = "Transmit retry excessed limits";
+				HandleTxErrors( xemacpsif );
+			}
+			if( ( ErrorWord & XEMACPS_TXSR_FRAMERX_MASK ) != 0 )
+			{
+				last_err_msg = "Transmit collision";
+				emacps_check_tx( xemacpsif );
+			}
+			break;
 		}
 	}
-
-	/* Break on this statement and inspect error_msg if you like */
+	// Break on this statement and inspect error_msg if you like
 	if( last_err_msg != NULL )
 	{
 		error_msg_count++;
@@ -235,24 +212,24 @@ xemacpsif_s *xemacpsif;
 	}
 }
 
-void HandleTxErrors( xemacpsif_s *xemacpsif )
+void HandleTxErrors(xemacpsif_s *xemacpsif)
 {
-u32 netctrlreg;
+	u32 netctrlreg;
 
-	/*taskENTER_CRITICAL() */
+	//taskENTER_CRITICAL()
 	{
-		netctrlreg = XEmacPs_ReadReg( xemacpsif->emacps.Config.BaseAddress,
-									  XEMACPS_NWCTRL_OFFSET );
-		netctrlreg = netctrlreg & ( ~XEMACPS_NWCTRL_TXEN_MASK );
-		XEmacPs_WriteReg( xemacpsif->emacps.Config.BaseAddress,
-						  XEMACPS_NWCTRL_OFFSET, netctrlreg );
+		netctrlreg = XEmacPs_ReadReg(xemacpsif->emacps.Config.BaseAddress,
+													XEMACPS_NWCTRL_OFFSET);
+		netctrlreg = netctrlreg & (~XEMACPS_NWCTRL_TXEN_MASK);
+		XEmacPs_WriteReg(xemacpsif->emacps.Config.BaseAddress,
+										XEMACPS_NWCTRL_OFFSET, netctrlreg);
 
 		clean_dma_txdescs( xemacpsif );
-		netctrlreg = XEmacPs_ReadReg( xemacpsif->emacps.Config.BaseAddress,
-									  XEMACPS_NWCTRL_OFFSET );
-		netctrlreg = netctrlreg | ( XEMACPS_NWCTRL_TXEN_MASK );
-		XEmacPs_WriteReg( xemacpsif->emacps.Config.BaseAddress,
-						  XEMACPS_NWCTRL_OFFSET, netctrlreg );
+		netctrlreg = XEmacPs_ReadReg(xemacpsif->emacps.Config.BaseAddress,
+														XEMACPS_NWCTRL_OFFSET);
+		netctrlreg = netctrlreg | (XEMACPS_NWCTRL_TXEN_MASK);
+		XEmacPs_WriteReg(xemacpsif->emacps.Config.BaseAddress,
+											XEMACPS_NWCTRL_OFFSET, netctrlreg);
 	}
-	/*taskEXIT_CRITICAL( ); */
+	//taskEXIT_CRITICAL( );
 }

@@ -1,6 +1,26 @@
 /*
- * FreeRTOS+TCP V2.3.0
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS+TCP Multi Interface Labs Build 180222
+ * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Authors include Hein Tibosch and Richard Barry
+ *
+ *******************************************************************************
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***   This is a version of FreeRTOS+TCP that supports multiple network      ***
+ ***   interfaces, and includes basic IPv6 functionality.  Unlike the base   ***
+ ***   version of FreeRTOS+TCP, THE MULTIPLE INTERFACE VERSION IS STILL IN   ***
+ ***   THE LAB.  While it is functional and has been used in commercial      ***
+ ***   products we are still refining its design, the source code does not   ***
+ ***   yet quite conform to the strict coding and style standards, and the   ***
+ ***   documentation and testing is not complete.                            ***
+ ***                                                                         ***
+ ***   PLEASE REPORT EXPERIENCES USING THE SUPPORT RESOURCES FOUND ON THE    ***
+ ***   URL: http://www.FreeRTOS.org/contact                                  ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ *******************************************************************************
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -24,15 +44,15 @@
  */
 
 #ifndef FREERTOS_DNS_H
-	#define FREERTOS_DNS_H
+#define FREERTOS_DNS_H
 
-	#ifdef __cplusplus
-	extern "C" {
-	#endif
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Application level configuration options. */
-	#include "FreeRTOSIPConfig.h"
-	#include "IPTraceMacroDefaults.h"
+#include "FreeRTOSIPConfig.h"
+#include "IPTraceMacroDefaults.h"
 
 
 /* The Link-local Multicast Name Resolution (LLMNR)
@@ -42,110 +62,103 @@
  *
  * The target IP address will be 224.0.0.252
  */
-	#if ( ipconfigBYTE_ORDER == pdFREERTOS_BIG_ENDIAN )
-		#define ipLLMNR_IP_ADDR	   0xE00000FCUL
-	#else
-		#define ipLLMNR_IP_ADDR	   0xFC0000E0UL
-	#endif /* ipconfigBYTE_ORDER == pdFREERTOS_BIG_ENDIAN */
+#if( ipconfigBYTE_ORDER == pdFREERTOS_BIG_ENDIAN )
+	#define	ipLLMNR_IP_ADDR			0xE00000FC
+#else
+	#define	ipLLMNR_IP_ADDR			0xFC0000E0
+#endif /* ipconfigBYTE_ORDER == pdFREERTOS_BIG_ENDIAN */
 
-	#define ipLLMNR_PORT		   5355 /* Standard LLMNR port. */
-	#define ipDNS_PORT			   53   /* Standard DNS port. */
-	#define ipDHCP_CLIENT		   67
-	#define ipDHCP_SERVER		   68
-	#define ipNBNS_PORT			   137 /* NetBIOS Name Service. */
-	#define ipNBDGM_PORT		   138 /* Datagram Service, not included. */
+#define	ipLLMNR_PORT	5355 /* Standard LLMNR port. */
+#define	ipDNS_PORT		53	/* Standard DNS port. */
+#define	ipDHCP_CLIENT	67
+#define	ipDHCP_SERVER	68
+#define	ipNBNS_PORT		137	/* NetBIOS Name Service. */
+#define	ipNBDGM_PORT	138 /* Datagram Service, not included. */
 
-	#if ( ipconfigUSE_LLMNR == 1 ) || ( ipconfigUSE_NBNS == 1 )
-
-		/*
-		* The following function should be provided by the user and return true if it
-		* matches the domain name.
-		*/
-		extern BaseType_t xApplicationDNSQueryHook( const char *pcName );
-	#endif /* ( ipconfigUSE_LLMNR == 1 ) || ( ipconfigUSE_NBNS == 1 ) */
+/*
+ * The following function should be provided by the user and return true if it
+ * matches the domain name.
+ */
+struct xNetworkEndPoint;
+extern BaseType_t xApplicationDNSQueryHook( struct xNetworkEndPoint *pxEndPoint, const char *pcName );
 
 /*
  * LLMNR is very similar to DNS, so is handled by the DNS routines.
  */
-	uint32_t ulDNSHandlePacket( const NetworkBufferDescriptor_t *pxNetworkBuffer );
+uint32_t ulDNSHandlePacket( NetworkBufferDescriptor_t *pxNetworkBuffer );
 
-	#if ( ipconfigUSE_LLMNR == 1 )
-		/* The LLMNR MAC address is 01:00:5e:00:00:fc */
-		extern const MACAddress_t xLLMNR_MacAdress;
-	#endif /* ipconfigUSE_LLMNR */
+#if( ipconfigUSE_LLMNR == 1 )
+	/* The LLMNR MAC address is 01:00:5e:00:00:fc */
+	extern const MACAddress_t xLLMNR_MacAdress;
+#endif /* ipconfigUSE_LLMNR */
 
-	#if ( ipconfigUSE_NBNS != 0 )
+#if( ipconfigUSE_LLMNR == 1 ) && ( ipconfigUSE_IPv6 != 0 )
 
-		/*
-		* Inspect a NetBIOS Names-Service message.  If the name matches with ours
-		* (xApplicationDNSQueryHook returns true) an answer will be sent back.
-		* Note that LLMNR is a better protocol for name services on a LAN as it is
-		* less polluted
-		*/
-		uint32_t ulNBNSHandlePacket( NetworkBufferDescriptor_t *pxNetworkBuffer );
+	/* The LLMNR IPv6 address is ff02::1:3 */
+	extern const IPv6_Address_t ipLLMNR_IP_ADDR_IPv6;
 
-	#endif /* ipconfigUSE_NBNS */
+	/* The LLMNR IPv6 MAC address is 33:33:00:01:00:03 */
+	extern const MACAddress_t xLLMNR_MacAdressIPv6;
+#endif /* ipconfigUSE_LLMNR */
 
-	#if ( ipconfigUSE_DNS_CACHE != 0 )
+#if( ipconfigUSE_NBNS != 0 )
 
-		/* Look for the indicated host name in the DNS cache. Returns the IPv4
-		address if present, or 0x0 otherwise. */
-		uint32_t FreeRTOS_dnslookup( const char *pcHostName );
+	/*
+	 * Inspect a NetBIOS Names-Service message.  If the name matches with ours
+	 * (xApplicationDNSQueryHook returns true) an answer will be sent back.
+	 * Note that LLMNR is a better protocol for name services on a LAN as it is
+	 * less polluted
+	 */
+	uint32_t ulNBNSHandlePacket (NetworkBufferDescriptor_t *pxNetworkBuffer );
 
-		/* Remove all entries from the DNS cache. */
-		void FreeRTOS_dnsclear( void );
+#endif /* ipconfigUSE_NBNS */
 
-	#endif /* ipconfigUSE_DNS_CACHE != 0 */
+#if( ipconfigUSE_DNS_CACHE != 0 )
 
-	#if ( ipconfigDNS_USE_CALLBACKS != 0 )
+	uint32_t FreeRTOS_dnslookup( const char *pcHostName );
 
-		/*
-		* Users may define this type of function as a callback.
-		* It will be called when a DNS reply is received or when a timeout has been reached.
-		*/
-		typedef void (* FOnDNSEvent ) ( const char * /* pcName */,
-										void * /* pvSearchID */,
-										uint32_t /* ulIPAddress */ );
+#endif /* ipconfigUSE_DNS_CACHE != 0 */
 
-		/*
-		* Asynchronous version of gethostbyname()
-		* xTimeout is in units of ms.
-		*/
-		uint32_t FreeRTOS_gethostbyname_a( const char *pcHostName,
-										   FOnDNSEvent pCallback,
-										   void *pvSearchID,
-										   TickType_t uxTimeout );
-		void FreeRTOS_gethostbyname_cancel( void *pvSearchID );
+#if( ipconfigDNS_USE_CALLBACKS != 0 )
 
-	#endif /* if ( ipconfigDNS_USE_CALLBACKS != 0 ) */
+	/*
+	 * Users may define this type of function as a callback.
+	 * It will be called when a DNS reply is received or when a timeout has been reached.
+	 */
+	typedef void (* FOnDNSEvent ) ( const char * /* pcName */, void * /* pvSearchID */, uint32_t /* ulIPAddress */ );
+
+	/*
+	 * Asynchronous version of gethostbyname()
+	 * xTimeout is in units of ms.
+	 */
+	uint32_t FreeRTOS_gethostbyname_a( const char *pcHostName, FOnDNSEvent pCallback, void *pvSearchID, TickType_t xTimeout );
+	void FreeRTOS_gethostbyname_cancel( void *pvSearchID );
+
+#endif
 
 /*
- * Lookup a IPv4 node in a blocking-way.
- * It returns a 32-bit IP-address, 0 when not found.
- * gethostbyname() is already deprecated.
+ * FULL, UP-TO-DATE AND MAINTAINED REFERENCE DOCUMENTATION FOR ALL THESE
+ * FUNCTIONS IS AVAILABLE ON THE FOLLOWING URL:
+ * _TBD_ Add URL
  */
-	uint32_t FreeRTOS_gethostbyname( const char *pcHostName );
-
-	#if ( ipconfigDNS_USE_CALLBACKS == 1 )
-
-		/*
-		* The function vDNSInitialise() initialises the DNS module.
-		* It will be called "internally", by the IP-task.
-		*/
-		void vDNSInitialise( void );
-	#endif /* ( ipconfigDNS_USE_CALLBACKS == 1 ) */
-
-	#if ( ipconfigDNS_USE_CALLBACKS == 1 )
-
-		/*
-		* A function local to the library.
-		*/
-		extern void vDNSCheckCallBack( void *pvSearchID );
-	#endif
+uint32_t FreeRTOS_gethostbyname( const char *pcHostName );
 
 
-	#ifdef __cplusplus
-	} /* extern "C" */
-	#endif
+#ifdef __cplusplus
+}	/* extern "C" */
+#endif
 
 #endif /* FREERTOS_DNS_H */
+
+
+
+
+
+
+
+
+
+
+
+
+

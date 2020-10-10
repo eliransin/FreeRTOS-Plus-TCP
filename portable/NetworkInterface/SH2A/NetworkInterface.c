@@ -1,27 +1,47 @@
 /*
-FreeRTOS+TCP V2.3.0
-Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
- http://aws.amazon.com/freertos
- http://www.FreeRTOS.org
-*/
+ * FreeRTOS+TCP Multi Interface Labs Build 180222
+ * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Authors include Hein Tibosch and Richard Barry
+ *
+ *******************************************************************************
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***   This is a version of FreeRTOS+TCP that supports multiple network      ***
+ ***   interfaces, and includes basic IPv6 functionality.  Unlike the base   ***
+ ***   version of FreeRTOS+TCP, THE MULTIPLE INTERFACE VERSION IS STILL IN   ***
+ ***   THE LAB.  While it is functional and has been used in commercial      ***
+ ***   products we are still refining its design, the source code does not   ***
+ ***   yet quite conform to the strict coding and style standards, and the   ***
+ ***   documentation and testing is not complete.                            ***
+ ***                                                                         ***
+ ***   PLEASE REPORT EXPERIENCES USING THE SUPPORT RESOURCES FOUND ON THE    ***
+ ***   URL: http://www.FreeRTOS.org/contact                                  ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ *******************************************************************************
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * http://aws.amazon.com/freertos
+ * http://www.FreeRTOS.org
+ */
 
 /* Standard includes. */
 #include <stdint.h>
@@ -44,17 +64,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "NetworkInterface.h"
 
 #if ipconfigETHERNET_DRIVER_FILTERS_FRAME_TYPES != 1
-	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer )	eProcessBuffer
+	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer ) eProcessBuffer
 #else
-	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer )	eConsiderFrameForProcessing( ( pucEthernetBuffer ) )
+	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer ) eConsiderFrameForProcessing( ( pucEthernetBuffer ) )
 #endif
 
 /* When a packet is ready to be sent, if it cannot be sent immediately then the
 task performing the transmit will block for niTX_BUFFER_FREE_WAIT
 milliseconds.  It will do this a maximum of niMAX_TX_ATTEMPTS before giving
 up. */
-#define niTX_BUFFER_FREE_WAIT		( ( TickType_t ) 2UL / portTICK_PERIOD_MS )
-#define niMAX_TX_ATTEMPTS			( 5 )
+#define niTX_BUFFER_FREE_WAIT	( ( TickType_t ) 2UL / portTICK_PERIOD_MS )
+#define niMAX_TX_ATTEMPTS		( 5 )
 
 /* The length of the queue used to send interrupt status words from the
 interrupt handler to the deferred handler task. */
@@ -86,9 +106,9 @@ extern uint8_t ucMACAddress[ 6 ];
 	vInitEmac();
 
 	while( lEMACWaitForLink() != pdPASS )
-	{
-		vTaskDelay( 20 );
-	}
+    {
+        vTaskDelay( 20 );
+    }
 
 	vSemaphoreCreateBinary( xEMACRxEventSemaphore );
 	configASSERT( xEMACRxEventSemaphore );
@@ -104,8 +124,7 @@ extern uint8_t ucMACAddress[ 6 ];
 
 BaseType_t xNetworkInterfaceOutput( NetworkBufferDescriptor_t * const pxNetworkBuffer )
 {
-	extern void vEMACCopyWrite( uint8_t * pucBuffer,
-								uint16_t usLength );
+extern void vEMACCopyWrite( uint8_t * pucBuffer, uint16_t usLength );
 
 	vEMACCopyWrite( pxNetworkBuffer->pucBuffer, pxNetworkBuffer->xDataLength );
 
@@ -115,3 +134,5 @@ BaseType_t xNetworkInterfaceOutput( NetworkBufferDescriptor_t * const pxNetworkB
 	return pdTRUE;
 }
 /*-----------------------------------------------------------*/
+
+

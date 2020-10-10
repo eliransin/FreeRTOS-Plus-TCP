@@ -1,6 +1,26 @@
 /*
- * FreeRTOS+TCP V2.3.0
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS+TCP Multi Interface Labs Build 180222
+ * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Authors include Hein Tibosch and Richard Barry
+ *
+ *******************************************************************************
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***   This is a version of FreeRTOS+TCP that supports multiple network      ***
+ ***   interfaces, and includes basic IPv6 functionality.  Unlike the base   ***
+ ***   version of FreeRTOS+TCP, THE MULTIPLE INTERFACE VERSION IS STILL IN   ***
+ ***   THE LAB.  While it is functional and has been used in commercial      ***
+ ***   products we are still refining its design, the source code does not   ***
+ ***   yet quite conform to the strict coding and style standards, and the   ***
+ ***   documentation and testing is not complete.                            ***
+ ***                                                                         ***
+ ***   PLEASE REPORT EXPERIENCES USING THE SUPPORT RESOURCES FOUND ON THE    ***
+ ***   URL: http://www.FreeRTOS.org/contact                                  ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ *******************************************************************************
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -154,12 +174,12 @@ http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_TCP/TCP_IP_Trace.html */
 	#define iptraceSENDING_DNS_REQUEST()
 #endif
 
-#ifndef iptraceWAITING_FOR_TX_DMA_DESCRIPTOR
+#ifndef	iptraceWAITING_FOR_TX_DMA_DESCRIPTOR
 	#define iptraceWAITING_FOR_TX_DMA_DESCRIPTOR()
 #endif
 
 #ifndef ipconfigINCLUDE_EXAMPLE_FREERTOS_PLUS_TRACE_CALLS
-	#define ipconfigINCLUDE_EXAMPLE_FREERTOS_PLUS_TRACE_CALLS    0
+	#define ipconfigINCLUDE_EXAMPLE_FREERTOS_PLUS_TRACE_CALLS 0
 #endif
 
 #ifndef iptraceFAILED_TO_NOTIFY_SELECT_GROUP
@@ -167,7 +187,7 @@ http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_TCP/TCP_IP_Trace.html */
 #endif
 
 #ifndef pvPortMallocSocket
-	#define pvPortMallocSocket( xSize )    pvPortMalloc( ( xSize ) )
+	#define pvPortMallocSocket(xSize) pvPortMalloc( ( xSize ) )
 #endif
 
 #ifndef iptraceRECVFROM_TIMEOUT
@@ -189,45 +209,5 @@ http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_TCP/TCP_IP_Trace.html */
 #ifndef iptraceSENDTO_DATA_TOO_LONG
 	#define iptraceSENDTO_DATA_TOO_LONG()
 #endif
-
-#ifndef ipconfigUSE_TCP_MEM_STATS
-	#define ipconfigUSE_TCP_MEM_STATS    0
-#endif
-
-#if ( ipconfigUSE_TCP_MEM_STATS == 0 )
-
-	/* See tools/tcp_mem_stat.c */
-
-	#ifndef iptraceMEM_STATS_CREATE
-		#define iptraceMEM_STATS_CREATE( xMemType, pxObject, uxSize )
-	#endif
-
-	#ifndef iptraceMEM_STATS_DELETE
-		#define iptraceMEM_STATS_DELETE( pxObject )
-	#endif
-
-	#ifndef iptraceMEM_STATS_CLOSE
-		#define iptraceMEM_STATS_CLOSE()
-	#endif
-
-#endif /* ( ipconfigUSE_TCP_MEM_STATS != 0 ) */
-
-#ifndef ipconfigUSE_DUMP_PACKETS
-	#define ipconfigUSE_DUMP_PACKETS    0
-#endif
-
-#if ( ipconfigUSE_DUMP_PACKETS == 0 )
-
-	/* See tools/tcp_dump_packets.c */
-
-	#ifndef iptraceDUMP_INIT
-		#define iptraceDUMP_INIT( pcFileName, pxEntries )
-	#endif
-
-	#ifndef iptraceDUMP_PACKET
-		#define iptraceDUMP_PACKET( pucBuffer, uxLength, xIncoming )
-	#endif
-
-#endif /* ( ipconfigUSE_DUMP_PACKETS != 0 ) */
 
 #endif /* UDP_TRACE_MACRO_DEFAULTS_H */

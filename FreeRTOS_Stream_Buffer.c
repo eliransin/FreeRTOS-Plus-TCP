@@ -1,6 +1,26 @@
 /*
- * FreeRTOS+TCP V2.3.0
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS+TCP Multi Interface Labs Build 180222
+ * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Authors include Hein Tibosch and Richard Barry
+ *
+ *******************************************************************************
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***   This is a version of FreeRTOS+TCP that supports multiple network      ***
+ ***   interfaces, and includes basic IPv6 functionality.  Unlike the base   ***
+ ***   version of FreeRTOS+TCP, THE MULTIPLE INTERFACE VERSION IS STILL IN   ***
+ ***   THE LAB.  While it is functional and has been used in commercial      ***
+ ***   products we are still refining its design, the source code does not   ***
+ ***   yet quite conform to the strict coding and style standards, and the   ***
+ ***   documentation and testing is not complete.                            ***
+ ***                                                                         ***
+ ***   PLEASE REPORT EXPERIENCES USING THE SUPPORT RESOURCES FOUND ON THE    ***
+ ***   URL: http://www.FreeRTOS.org/contact                                  ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ *******************************************************************************
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -44,13 +64,9 @@
  * will be used when TCP data is received while earlier data is still missing.
  * If 'pucData' equals NULL, the function is called to advance 'uxHead' only.
  */
-size_t uxStreamBufferAdd( StreamBuffer_t *pxBuffer,
-						  size_t uxOffset,
-						  const uint8_t *pucData,
-						  size_t uxByteCount )
+size_t uxStreamBufferAdd( StreamBuffer_t *pxBuffer, size_t uxOffset, const uint8_t *pucData, size_t uxCount )
 {
 size_t uxSpace, uxNextHead, uxFirst;
-size_t uxCount = uxByteCount;
 
 	uxSpace = uxStreamBufferGetSpace( pxBuffer );
 
@@ -61,22 +77,21 @@ size_t uxCount = uxByteCount;
 	}
 	else
 	{
-		uxSpace = 0U;
+		uxSpace = 0u;
 	}
 
 	/* The number of bytes that can be written is the minimum of the number of
 	bytes requested and the number available. */
 	uxCount = FreeRTOS_min_uint32( uxSpace, uxCount );
 
-	if( uxCount != 0U )
+	if( uxCount != 0u )
 	{
 		uxNextHead = pxBuffer->uxHead;
 
-		if( uxOffset != 0U )
+		if( uxOffset != 0u )
 		{
 			/* ( uxOffset > 0 ) means: write in front if the uxHead marker */
 			uxNextHead += uxOffset;
-
 			if( uxNextHead >= pxBuffer->LENGTH )
 			{
 				uxNextHead -= pxBuffer->LENGTH;
@@ -91,7 +106,7 @@ size_t uxCount = uxByteCount;
 			uxFirst = FreeRTOS_min_uint32( pxBuffer->LENGTH - uxNextHead, uxCount );
 
 			/* Write as many bytes as can be written in the first write. */
-			( void ) memcpy( &( pxBuffer->ucArray[ uxNextHead ] ), pucData, uxFirst );
+			memcpy( ( void* ) ( pxBuffer->ucArray + uxNextHead ), pucData, uxFirst );
 
 			/* If the number of bytes written was less than the number that
 			could be written in the first write... */
@@ -99,20 +114,18 @@ size_t uxCount = uxByteCount;
 			{
 				/* ...then write the remaining bytes to the start of the
 				buffer. */
-				( void ) memcpy( pxBuffer->ucArray, &( pucData[ uxFirst ] ), uxCount - uxFirst );
+				memcpy( ( void * )pxBuffer->ucArray, pucData + uxFirst, uxCount - uxFirst );
 			}
 		}
 
-		if( uxOffset == 0U )
+		if( uxOffset == 0u )
 		{
 			/* ( uxOffset == 0 ) means: write at uxHead position */
 			uxNextHead += uxCount;
-
 			if( uxNextHead >= pxBuffer->LENGTH )
 			{
 				uxNextHead -= pxBuffer->LENGTH;
 			}
-
 			pxBuffer->uxHead = uxNextHead;
 		}
 
@@ -134,11 +147,7 @@ size_t uxCount = uxByteCount;
  * if 'xPeek' is pdTRUE, or if 'uxOffset' is non-zero, the 'lTail' pointer will
  * not be advanced.
  */
-size_t uxStreamBufferGet( StreamBuffer_t *pxBuffer,
-						  size_t uxOffset,
-						  uint8_t *pucData,
-						  size_t uxMaxCount,
-						  BaseType_t xPeek )
+size_t uxStreamBufferGet( StreamBuffer_t *pxBuffer, size_t uxOffset, uint8_t *pucData, size_t uxMaxCount, BaseType_t xPeek )
 {
 size_t uxSize, uxCount, uxFirst, uxNextTail;
 
@@ -151,20 +160,19 @@ size_t uxSize, uxCount, uxFirst, uxNextTail;
 	}
 	else
 	{
-		uxSize = 0U;
+		uxSize = 0u;
 	}
 
 	/* Use the minimum of the wanted bytes and the available bytes. */
 	uxCount = FreeRTOS_min_uint32( uxSize, uxMaxCount );
 
-	if( uxCount > 0U )
+	if( uxCount > 0u )
 	{
 		uxNextTail = pxBuffer->uxTail;
 
-		if( uxOffset != 0U )
+		if( uxOffset != 0u )
 		{
 			uxNextTail += uxOffset;
-
 			if( uxNextTail >= pxBuffer->LENGTH )
 			{
 				uxNextTail -= pxBuffer->LENGTH;
@@ -180,20 +188,20 @@ size_t uxSize, uxCount, uxFirst, uxNextTail;
 
 			/* Obtain the number of bytes it is possible to obtain in the first
 			read. */
-			( void ) memcpy( pucData, &( pxBuffer->ucArray[ uxNextTail ] ), uxFirst );
+			memcpy( pucData, pxBuffer->ucArray + uxNextTail, uxFirst );
 
 			/* If the total number of wanted bytes is greater than the number
 			that could be read in the first read... */
 			if( uxCount > uxFirst )
 			{
 				/*...then read the remaining bytes from the start of the buffer. */
-				( void ) memcpy( &( pucData[ uxFirst ] ), pxBuffer->ucArray, uxCount - uxFirst );
+				memcpy( pucData + uxFirst, pxBuffer->ucArray, uxCount - uxFirst );
 			}
 		}
 
 		if( ( xPeek == pdFALSE ) && ( uxOffset == 0UL ) )
 		{
-			/* Move the tail pointer to effectively remove the data read from
+			/* Move the tail pointer to effecively remove the data read from
 			the buffer. */
 			uxNextTail += uxCount;
 
@@ -208,3 +216,4 @@ size_t uxSize, uxCount, uxFirst, uxNextTail;
 
 	return uxCount;
 }
+

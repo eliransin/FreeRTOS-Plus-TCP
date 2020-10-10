@@ -1,27 +1,47 @@
 /*
-FreeRTOS+TCP V2.3.0
-Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
- http://aws.amazon.com/freertos
- http://www.FreeRTOS.org
-*/
+ * FreeRTOS+TCP Multi Interface Labs Build 180222
+ * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Authors include Hein Tibosch and Richard Barry
+ *
+ *******************************************************************************
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***   This is a version of FreeRTOS+TCP that supports multiple network      ***
+ ***   interfaces, and includes basic IPv6 functionality.  Unlike the base   ***
+ ***   version of FreeRTOS+TCP, THE MULTIPLE INTERFACE VERSION IS STILL IN   ***
+ ***   THE LAB.  While it is functional and has been used in commercial      ***
+ ***   products we are still refining its design, the source code does not   ***
+ ***   yet quite conform to the strict coding and style standards, and the   ***
+ ***   documentation and testing is not complete.                            ***
+ ***                                                                         ***
+ ***   PLEASE REPORT EXPERIENCES USING THE SUPPORT RESOURCES FOUND ON THE    ***
+ ***   URL: http://www.FreeRTOS.org/contact                                  ***
+ ***                                                                         ***
+ ***                                                                         ***
+ ***** NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ******* NOTE ***
+ *******************************************************************************
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * http://aws.amazon.com/freertos
+ * http://www.FreeRTOS.org
+ */
 
 /* WinPCap includes. */
 #define HAVE_REMOTE
@@ -35,6 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* FreeRTOS+TCP includes. */
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_IP_Private.h"
+#include "FreeRTOS_Routing.h"
 #include "NetworkBufferManagement.h"
 
 /* Thread-safe circular buffers are being used to pass data to and from the PCAP
@@ -44,20 +65,20 @@ access functions. */
 
 /* Sizes of the thread safe circular buffers used to pass data to and from the
 WinPCAP Windows threads. */
-#define xSEND_BUFFER_SIZE	 32768
-#define xRECV_BUFFER_SIZE	 32768
+#define xSEND_BUFFER_SIZE  32768
+#define xRECV_BUFFER_SIZE  32768
 
 /* If ipconfigETHERNET_DRIVER_FILTERS_FRAME_TYPES is set to 1, then the Ethernet
 driver will filter incoming packets and only pass the stack those packets it
 considers need processing. */
-#if ( ipconfigETHERNET_DRIVER_FILTERS_FRAME_TYPES == 0 )
-	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer )	eProcessBuffer
+#if( ipconfigETHERNET_DRIVER_FILTERS_FRAME_TYPES == 0 )
+	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer ) eProcessBuffer
 #else
-	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer )	eConsiderFrameForProcessing( ( pucEthernetBuffer ) )
+	#define ipCONSIDER_FRAME_FOR_PROCESSING( pucEthernetBuffer ) eConsiderFrameForProcessing( ( pucEthernetBuffer ) )
 #endif
 
 /* Used to insert test code only. */
-#define niDISRUPT_PACKETS    0
+#define niDISRUPT_PACKETS	0
 
 /*-----------------------------------------------------------*/
 
@@ -79,7 +100,7 @@ static pcap_if_t * prvPrintAvailableNetworkInterfaces( void );
  * by the configNETWORK_INTERFACE_TO_USE constant in FreeRTOSConfig.h.
  */
 static void prvOpenSelectedNetworkInterface( pcap_if_t *pxAllNetworkInterfaces );
-static int prvOpenInterface( const char *pucName );
+static void prvOpenInterface( const char *pucName );
 
 /*
  * Configure the capture filter to allow blocking reads, and to filter out
@@ -102,9 +123,31 @@ static void prvCreateThreadSafeBuffers( void );
 /*
  * Utility function used to format print messages only.
  */
-static const char * prvRemoveSpaces( char *pcBuffer,
-									 int aBuflen,
-									 const char *pcMessage );
+static const char *prvRemoveSpaces( char *pcBuffer, int aBuflen, const char *pcMessage );
+
+/*
+ * Initialises the WinPCap interface.
+ */
+static BaseType_t prvNetworkInterfaceInitialise( struct xNetworkInterface *pxInterface );
+
+/*
+ * Writes data to the network.
+ */
+static BaseType_t prvNetworkInterfaceOutput( void *pvNetworkInterfaceIndex, NetworkBufferDescriptor_t * const pxNetworkBuffer, BaseType_t bReleaseAfterSend );
+
+/*
+ * The WinPCap interface is not a real network interface in its own right, and
+ * has no PHY to return the status of.
+ */
+static BaseType_t prvGetLinkStatus( NetworkInterface_t *pxInterface );
+
+/*
+ * Search the array of NetworkInterface_t structures managed by this driver for
+ * one that contains the MAC address passed in the pucMACAddressBytes parameter.
+ * Return a pointer to the matching NetworkInterface_t structure if one is
+ * found, or NULL if a match is not found.
+ */
+static NetworkInterface_t *prvFindVirtualInterface( const uint8_t *pucMACAddressBytes );
 
 /*-----------------------------------------------------------*/
 
@@ -117,11 +160,11 @@ static void *pvSendEvent = NULL;
 
 /* _HT_ made the PCAP interface number configurable through the program's
 parameters in order to test in different machines. */
-static BaseType_t xConfigNetworkInterfaceToUse = configNETWORK_INTERFACE_TO_USE;
+static BaseType_t xConfigNextworkInterfaceToUse = configNETWORK_INTERFACE_TO_USE;
 
 /* Handles to the Windows threads that handle the PCAP IO. */
 static HANDLE vWinPcapRecvThreadHandle = NULL;
-static HANDLE vWinPcapSendThreadHandle = NULL;
+static HANDLE vWinPcapSendThreadHandle = NULL;;
 
 /* The interface being used by WinPCap. */
 static pcap_t *pxOpenedInterfaceHandle = NULL;
@@ -136,12 +179,25 @@ extern uint8_t ucMACAddress[ 6 ];
 /* Logs the number of WinPCAP send failures, for viewing in the debugger only. */
 static volatile uint32_t ulWinPCAPSendFailures = 0;
 
+/* This is not a 'normal' network driver, but instead creates one or more
+virtual interfaces on an existing network by accessing the raw data on the
+network.  xNetworkInterfaces[] stores a NetworkInterface_t structure for each
+virtual node on the network.  ulInterfaceOutputCalls[] just keeps a count of the
+number of times each network interface has called the output function (the
+count is for test and debug purposes only). */
+static NetworkInterface_t *pxVirtualNetworkInterefaces[ ipconfigMULTI_INTERFACE ] = { 0 };
+static uint32_t ulInterfaceOutputCalls[ ipconfigMULTI_INTERFACE ] = { 0 };
+
 /*-----------------------------------------------------------*/
 
-BaseType_t xNetworkInterfaceInitialise( void )
+static BaseType_t prvNetworkInterfaceInitialise( struct xNetworkInterface *pxInterface )
 {
 BaseType_t xReturn = pdFALSE;
 pcap_if_t *pxAllNetworkInterfaces;
+
+	/* This driver does not use the pxInterface parameter.  Remove the compiler
+	warning. */
+	( void ) pxInterface; /*_RB_ Are any drivers going to use this parameter? */
 
 	/* Query the computer the simulation is being executed on to find the
 	network interfaces it has installed. */
@@ -170,7 +226,7 @@ static void prvCreateThreadSafeBuffers( void )
 {
 	/* The buffer used to pass data to be transmitted from a FreeRTOS task to
 	the Win32 thread that sends via the WinPCAP library. */
-	if( xSendBuffer == NULL )
+	if( xSendBuffer == NULL)
 	{
 		xSendBuffer = ( StreamBuffer_t * ) malloc( sizeof( *xSendBuffer ) - sizeof( xSendBuffer->ucArray ) + xSEND_BUFFER_SIZE + 1 );
 		configASSERT( xSendBuffer );
@@ -180,7 +236,7 @@ static void prvCreateThreadSafeBuffers( void )
 
 	/* The buffer used to pass received data from the Win32 thread that receives
 	via the WinPCAP library to the FreeRTOS task. */
-	if( xRecvBuffer == NULL )
+	if( xRecvBuffer == NULL)
 	{
 		xRecvBuffer = ( StreamBuffer_t * ) malloc( sizeof( *xRecvBuffer ) - sizeof( xRecvBuffer->ucArray ) + xRECV_BUFFER_SIZE + 1 );
 		configASSERT( xRecvBuffer );
@@ -190,13 +246,22 @@ static void prvCreateThreadSafeBuffers( void )
 }
 /*-----------------------------------------------------------*/
 
-BaseType_t xNetworkInterfaceOutput( NetworkBufferDescriptor_t * const pxNetworkBuffer,
-									BaseType_t bReleaseAfterSend )
+/*_RB_ First parameter should be struct xNetworkInterface, but void * might be more convenient. */
+static BaseType_t prvNetworkInterfaceOutput( void *pvNetworkInterfaceIndex, NetworkBufferDescriptor_t * const pxNetworkBuffer, BaseType_t bReleaseAfterSend )
 {
 size_t xSpace;
+uint32_t ulInterfaceIndex = ( uint32_t ) pvNetworkInterfaceIndex;
 
 	iptraceNETWORK_INTERFACE_TRANSMIT();
 	configASSERT( xIsCallingFromIPTask() == pdTRUE );
+
+	/* For debugging purposes only - count the number of times each interface
+	calls the output function. */
+	configASSERT( ulInterfaceIndex < ipconfigMULTI_INTERFACE );
+	if( ulInterfaceIndex < ipconfigMULTI_INTERFACE )
+	{
+		( ulInterfaceOutputCalls[ ulInterfaceIndex ] )++;
+	}
 
 	/* Both the length of the data being sent and the actual data being sent
 	are placed in the thread safe buffer used to pass data between the FreeRTOS
@@ -231,70 +296,119 @@ size_t xSpace;
 }
 /*-----------------------------------------------------------*/
 
+void vWinPCapFillInterfaceDescriptor( BaseType_t xInterfaceNumber, NetworkInterface_t *pxInterface )
+{
+static const char *pcInterfaceNames[] =
+{
+	"WinPCap_1",
+	"WinPCap_2",
+	"WinPCap_3"
+};
+BaseType_t x;
+
+	/* Check xInterfaceNumber is not going to overflow the pcInterfaceNames[]
+	array. */
+	configASSERT( xInterfaceNumber < ( sizeof( pcInterfaceNames ) / sizeof( char * ) ) );
+
+	/* Populate the NetworkInterface_t structure with the information needed to
+	send to and receive from the network interface.  The object pointed to by
+	pxInterface must be persistent (global or static, and definitely not
+	declared on the stack of a function. */
+	memset( pxInterface, '\0', sizeof( NetworkInterface_t ) );
+
+	/* The name is only used for debugging and logging. */
+	pxInterface->pcName				= pcInterfaceNames[ xInterfaceNumber ];
+
+	/* The driver can use the pvArgument member for its own purposes.  In this
+	case it is used to store an index into the pxVirtualNetworkInterfaces[]
+	array that is later used to count the number of times each virtual interface
+	calls the output function. */
+	pxInterface->pvArgument			= ( void * ) xInterfaceNumber;
+
+	/* Functions to initialise, write to, and check the link status of the
+	network interface respectively. */
+	pxInterface->pfInitialise		= prvNetworkInterfaceInitialise;
+	pxInterface->pfOutput			= prvNetworkInterfaceOutput;
+	pxInterface->pfGetPhyLinkStatus = prvGetLinkStatus;
+
+	/* As this single driver handles multiple virtual network interfaces (nodes
+	on the network) it is necessary to remember each NetworkInterface_t
+	structure so packets that arrive on the real network can be allocated to or
+	from one of the multiple virtual nodes. */
+	for( x = 0; x < ipconfigMULTI_INTERFACE; x++ )
+	{
+		if( pxVirtualNetworkInterefaces[ x ] == NULL )
+		{
+			/* Found a space in the pxVirtualNetworkInterefaces array - store a
+			pointer to the NetworkInterface_t structure currently being
+			populated. */
+			pxVirtualNetworkInterefaces[ x ] = pxInterface;
+			break;
+		}
+	}
+}
+/*-----------------------------------------------------------*/
+
+static BaseType_t prvGetLinkStatus( NetworkInterface_t *pxInterface )
+{
+	/* This driver does not use the parameter.  Remove the compiler warning. */
+	( void ) pxInterface; /*_RB_ Are any drivers going to use this parameter? */
+
+	/* The WinPCap interface is not a real network interface in its own right,
+	and has no PHY to return the status of. */
+	return pdTRUE;
+}
+/*-----------------------------------------------------------*/
+
 static pcap_if_t * prvPrintAvailableNetworkInterfaces( void )
 {
 pcap_if_t * pxAllNetworkInterfaces = NULL, *xInterface;
 int32_t lInterfaceNumber = 1;
 char cBuffer[ 512 ];
-static BaseType_t xInvalidInterfaceDetected = pdFALSE;
 
-	if( xInvalidInterfaceDetected == pdFALSE )
+	if( pcap_findalldevs_ex( PCAP_SRC_IF_STRING, NULL, &pxAllNetworkInterfaces, cErrorBuffer ) == -1 )
 	{
-		if( pcap_findalldevs_ex( PCAP_SRC_IF_STRING, NULL, &pxAllNetworkInterfaces, cErrorBuffer ) == -1 )
+		printf( "Could not obtain a list of network interfaces\n%s\n", cErrorBuffer );
+		pxAllNetworkInterfaces = NULL;
+	}
+
+	if( pxAllNetworkInterfaces != NULL )
+	{
+		/* Print out the list of network interfaces.  The first in the list
+		is interface '1', not interface '0'. */
+		for( xInterface = pxAllNetworkInterfaces; xInterface != NULL; xInterface = xInterface->next )
 		{
-			printf( "Could not obtain a list of network interfaces\n%s\n", cErrorBuffer );
-			pxAllNetworkInterfaces = NULL;
+			/* The descriptions of the devices can be full of spaces, clean them
+			a little.  printf() can only be used here because the network is not
+			up yet - so no other network tasks will be running. */
+			printf( "%d. %s\n", lInterfaceNumber, prvRemoveSpaces( cBuffer, sizeof cBuffer, xInterface->name ) );
+			printf( "   (%s)\n", prvRemoveSpaces(cBuffer, sizeof cBuffer, xInterface->description ? xInterface->description : "No description" ) );
+			printf( "\n" );
+			lInterfaceNumber++;
 		}
-		else
-		{
-			printf( "\r\n\r\nThe following network interfaces are available:\r\n\r\n" );
-		}
+	}
+
+	if( lInterfaceNumber == 1 )
+	{
+		/* The interface number was never incremented, so the above for() loop
+		did not execute meaning no interfaces were found. */
+		printf( " \nNo network interfaces were found.\n" );
+		pxAllNetworkInterfaces = NULL;
+	}
+
+	printf( "The interface that will be opened is set by\n" );
+	printf( "\"configNETWORK_INTERFACE_TO_USE\" which should be defined in FreeRTOSConfig.h\n" );
+	printf( "Attempting to open interface number %d.\n", xConfigNextworkInterfaceToUse );
+
+	if( ( xConfigNextworkInterfaceToUse < 1L ) || ( xConfigNextworkInterfaceToUse > lInterfaceNumber ) )
+	{
+		printf( "configNETWORK_INTERFACE_TO_USE is not in the valid range.\n" );
 
 		if( pxAllNetworkInterfaces != NULL )
 		{
-			/* Print out the list of network interfaces.  The first in the list
-			is interface '1', not interface '0'. */
-			for( xInterface = pxAllNetworkInterfaces; xInterface != NULL; xInterface = xInterface->next )
-			{
-				/* The descriptions of the devices can be full of spaces, clean them
-				a little.  printf() can only be used here because the network is not
-				up yet - so no other network tasks will be running. */
-				printf( "Interface %d - %s\n", lInterfaceNumber, prvRemoveSpaces( cBuffer, sizeof( cBuffer ), xInterface->name ) );
-				printf( "              (%s)\n", prvRemoveSpaces( cBuffer, sizeof( cBuffer ), xInterface->description ? xInterface->description : "No description" ) );
-				printf( "\n" );
-				lInterfaceNumber++;
-			}
-		}
-
-		if( lInterfaceNumber == 1 )
-		{
-			/* The interface number was never incremented, so the above for() loop
-			did not execute meaning no interfaces were found. */
-			printf( " \nNo network interfaces were found.\n" );
+			/* Free the device list, as no devices are going to be opened. */
+			pcap_freealldevs( pxAllNetworkInterfaces );
 			pxAllNetworkInterfaces = NULL;
-		}
-
-		printf( "\r\nThe interface that will be opened is set by " );
-		printf( "\"configNETWORK_INTERFACE_TO_USE\", which\r\nshould be defined in FreeRTOSConfig.h\r\n" );
-
-		if( ( xConfigNetworkInterfaceToUse < 1L ) || ( xConfigNetworkInterfaceToUse >= lInterfaceNumber ) )
-		{
-			printf( "\r\nERROR:  configNETWORK_INTERFACE_TO_USE is set to %d, which is an invalid value.\r\n", xConfigNetworkInterfaceToUse );
-			printf( "Please set configNETWORK_INTERFACE_TO_USE to one of the interface numbers listed above,\r\n" );
-			printf( "then re-compile and re-start the application.  Only Ethernet (as opposed to WiFi)\r\n" );
-			printf( "interfaces are supported.\r\n\r\nHALTING\r\n\r\n\r\n" );
-			xInvalidInterfaceDetected = pdTRUE;
-
-			if( pxAllNetworkInterfaces != NULL )
-			{
-				/* Free the device list, as no devices are going to be opened. */
-				pcap_freealldevs( pxAllNetworkInterfaces );
-				pxAllNetworkInterfaces = NULL;
-			}
-		}
-		else
-		{
-			printf( "Attempting to open interface number %d.\n", xConfigNetworkInterfaceToUse );
 		}
 	}
 
@@ -302,7 +416,7 @@ static BaseType_t xInvalidInterfaceDetected = pdFALSE;
 }
 /*-----------------------------------------------------------*/
 
-static int prvOpenInterface( const char *pucName )
+static void prvOpenInterface( const char *pucName )
 {
 static char pucInterfaceName[ 256 ];
 
@@ -311,24 +425,23 @@ static char pucInterfaceName[ 256 ];
 		strncpy( pucInterfaceName, pucName, sizeof( pucInterfaceName ) );
 	}
 
-	pxOpenedInterfaceHandle = pcap_open( pucInterfaceName,            /* The name of the selected interface. */
-										 ipTOTAL_ETHERNET_FRAME_SIZE, /* The size of the packet to capture. */
-										 PCAP_OPENFLAG_PROMISCUOUS,   /* Open in promiscuous mode as the MAC and
-	                                                                    IP address is going to be "simulated", and
-	                                                                    not be the real MAC and IP address.  This allows
-	                                                                    traffic to the simulated IP address to be routed
-	                                                                    to uIP, and traffic to the real IP address to be
-	                                                                    routed to the Windows TCP/IP stack. */
-										 100,
-										 NULL,                        /* No authentication is required as this is
-	                                                                    not a remote capture session. */
-										 cErrorBuffer
-										 );
+	pxOpenedInterfaceHandle = pcap_open(	pucInterfaceName,          	/* The name of the selected interface. */
+											ipTOTAL_ETHERNET_FRAME_SIZE, /* The size of the packet to capture. */
+											PCAP_OPENFLAG_PROMISCUOUS,	/* Open in promiscuous mode as the MAC and
+																		IP address is going to be "simulated", and
+																		not be the real MAC and IP address.  This allows
+																		traffic to the simulated IP address to be routed
+																		to uIP, and traffic to the real IP address to be
+																		routed to the Windows TCP/IP stack. */
+											100,
+											NULL,             			/* No authentication is required as this is
+																		not a remote capture session. */
+											cErrorBuffer
+									   );
 
-	if( pxOpenedInterfaceHandle == NULL )
+	if ( pxOpenedInterfaceHandle == NULL )
 	{
 		printf( "\n%s is not supported by WinPcap and cannot be opened\n", pucInterfaceName );
-		return 1;
 	}
 	else
 	{
@@ -336,33 +449,23 @@ static char pucInterfaceName[ 256 ];
 		out packets that are not of interest to this demo. */
 		prvConfigureCaptureBehaviour();
 	}
-
-	return 0;
 }
 /*-----------------------------------------------------------*/
 
 static void prvOpenSelectedNetworkInterface( pcap_if_t *pxAllNetworkInterfaces )
 {
-pcap_if_t *pxInterface;
+pcap_if_t *xInterface;
 int32_t x;
 
 	/* Walk the list of devices until the selected device is located. */
-	pxInterface = pxAllNetworkInterfaces;
-
-	for( x = 0L; x < ( xConfigNetworkInterfaceToUse - 1L ); x++ )
+	xInterface = pxAllNetworkInterfaces;
+	for( x = 0L; x < ( xConfigNextworkInterfaceToUse - 1L ); x++ )
 	{
-		pxInterface = pxInterface->next;
+		xInterface = xInterface->next;
 	}
 
 	/* Open the selected interface. */
-	if( prvOpenInterface( pxInterface->name ) == 0 )
-	{
-		printf( "Successfully opened interface number %d.\n", x + 1 );
-	}
-	else
-	{
-		printf( "Failed to open interface number %d.\n", x + 1 );
-	}
+	prvOpenInterface( xInterface->name );
 
 	/* The device list is no longer required. */
 	pcap_freealldevs( pxAllNetworkInterfaces );
@@ -371,18 +474,23 @@ int32_t x;
 
 static void prvConfigureCaptureBehaviour( void )
 {
-	struct bpf_program xFilterCode;
-	uint32_t ulNetMask;
+struct bpf_program xFilterCode;
+
+	/* As is, the string passed to pcap_compile() assumes no more than 3
+	interfaces are being emulated. */
+	configASSERT( ipconfigMULTI_INTERFACE <= 3 );
 
 	/* Set up a filter so only the packets of interest are passed to the IP
 	stack.  cErrorBuffer is used for convenience to create the string.  Don't
-	confuse this with an error message. */
-	sprintf( cErrorBuffer, "broadcast or multicast or ether host %x:%x:%x:%x:%x:%x",
-			 ucMACAddress[ 0 ], ucMACAddress[ 1 ], ucMACAddress[ 2 ], ucMACAddress[ 3 ], ucMACAddress[ 4 ], ucMACAddress[ 5 ] );
+	confuse this with an error message.  If more than one interface is used
+	then following interfaces have the MAC address of the preceding interface,
+	hence the +1 and +2 on the second and third MAC addresses. */
+	sprintf( cErrorBuffer, "broadcast or multicast or ether host %x:%x:%x:%x:%x:%x or ether host %x:%x:%x:%x:%x:%x or ether host %x:%x:%x:%x:%x:%x",
+		configMAC_ADDR0, configMAC_ADDR1, configMAC_ADDR2, configMAC_ADDR3, configMAC_ADDR4, configMAC_ADDR5,
+		configMAC_ADDR0, configMAC_ADDR1, configMAC_ADDR2, configMAC_ADDR3, configMAC_ADDR4, configMAC_ADDR5 + 1,
+		configMAC_ADDR0, configMAC_ADDR1, configMAC_ADDR2, configMAC_ADDR3, configMAC_ADDR4, configMAC_ADDR5 + 2 );
 
-	ulNetMask = ( configNET_MASK3 << 24UL ) | ( configNET_MASK2 << 16UL ) | ( configNET_MASK1 << 8L ) | configNET_MASK0;
-
-	if( pcap_compile( pxOpenedInterfaceHandle, &xFilterCode, cErrorBuffer, 1, ulNetMask ) < 0 )
+	if( pcap_compile( pxOpenedInterfaceHandle, &xFilterCode, cErrorBuffer, 1, 0 ) < 0 )
 	{
 		printf( "\nThe packet filter string is invalid\n" );
 	}
@@ -392,10 +500,6 @@ static void prvConfigureCaptureBehaviour( void )
 		{
 			printf( "\nAn error occurred setting the packet filter.\n" );
 		}
-
-		/* When pcap_compile() succeeds, it allocates memory for the memory pointed to by the bpf_program struct
-		parameter.pcap_freecode() will free that memory. */
-		pcap_freecode( &xFilterCode );
 	}
 
 	/* Create the buffers used to pass packets between the FreeRTOS simulator
@@ -409,11 +513,11 @@ static void prvConfigureCaptureBehaviour( void )
 
 		/* Create the Win32 thread that handles WinPCAP Rx. */
 		vWinPcapRecvThreadHandle = CreateThread(
-			NULL,                 /* Pointer to thread security attributes. */
-			0,                    /* Initial thread stack size, in bytes. */
-			prvWinPcapRecvThread, /* Pointer to thread function. */
-			NULL,                 /* Argument for new thread. */
-			0,                    /* Creation flags. */
+			NULL,	/* Pointer to thread security attributes. */
+			0,		/* Initial thread stack size, in bytes. */
+			prvWinPcapRecvThread,	/* Pointer to thread function. */
+			NULL,	/* Argument for new thread. */
+			0,		/* Creation flags. */
 			NULL );
 
 		/* Use the cores that are not used by the FreeRTOS tasks. */
@@ -421,11 +525,11 @@ static void prvConfigureCaptureBehaviour( void )
 
 		/* Create the Win32 thread that handlers WinPCAP Tx. */
 		vWinPcapSendThreadHandle = CreateThread(
-			NULL,                 /* Pointer to thread security attributes. */
-			0,                    /* initial thread stack size, in bytes. */
-			prvWinPcapSendThread, /* Pointer to thread function. */
-			NULL,                 /* Argument for new thread. */
-			0,                    /* Creation flags. */
+			NULL,	/* Pointer to thread security attributes. */
+			0,		/* initial thread stack size, in bytes. */
+			prvWinPcapSendThread,	/* Pointer to thread function. */
+			NULL,	/* Argument for new thread. */
+			0,		/* Creation flags. */
 			NULL );
 
 		/* Use the cores that are not used by the FreeRTOS tasks. */
@@ -440,11 +544,9 @@ static void prvConfigureCaptureBehaviour( void )
 /*-----------------------------------------------------------*/
 
 /* WinPCAP function. */
-void pcap_callback( u_char *user,
-					const struct pcap_pkthdr *pkt_header,
-					const u_char *pkt_data )
+void pcap_callback( u_char *user, const struct pcap_pkthdr *pkt_header, const u_char *pkt_data )
 {
-	( void ) user;
+	(void)user;
 
 	/* THIS IS CALLED FROM A WINDOWS THREAD - DO NOT ATTEMPT ANY FREERTOS CALLS
 	OR TO PRINT OUT MESSAGES HERE. */
@@ -453,25 +555,20 @@ void pcap_callback( u_char *user,
 	if( ( pkt_header->caplen <= ( ipconfigNETWORK_MTU + ipSIZE_OF_ETH_HEADER ) ) &&
 		( uxStreamBufferGetSpace( xRecvBuffer ) >= ( ( ( size_t ) pkt_header->caplen ) + sizeof( *pkt_header ) ) ) )
 	{
-		/* The received packets will be written to a C source file,
-		only if 'ipconfigUSE_DUMP_PACKETS' is defined.
-		Otherwise, there is no action. */
-		iptraceDUMP_PACKET( ( const uint8_t * ) pkt_data, ( size_t ) pkt_header->caplen, pdTRUE );
-
-		uxStreamBufferAdd( xRecvBuffer, 0, ( const uint8_t * ) pkt_header, sizeof( *pkt_header ) );
-		uxStreamBufferAdd( xRecvBuffer, 0, ( const uint8_t * ) pkt_data, ( size_t ) pkt_header->caplen );
+		uxStreamBufferAdd( xRecvBuffer, 0, ( const uint8_t* ) pkt_header, sizeof( *pkt_header ) );
+		uxStreamBufferAdd( xRecvBuffer, 0, ( const uint8_t* ) pkt_data, ( size_t ) pkt_header->caplen );
 	}
 }
 /*-----------------------------------------------------------*/
 
-DWORD WINAPI prvWinPcapRecvThread( void *pvParam )
+DWORD WINAPI prvWinPcapRecvThread ( void *pvParam )
 {
 	( void ) pvParam;
 
 	/* THIS IS A WINDOWS THREAD - DO NOT ATTEMPT ANY FREERTOS CALLS	OR TO PRINT
 	OUT MESSAGES HERE. */
 
-	for( ; ; )
+	for( ;; )
 	{
 		pcap_dispatch( pxOpenedInterfaceHandle, 1, pcap_callback, ( u_char * ) "mydata" );
 	}
@@ -491,7 +588,7 @@ const DWORD xMaxMSToWait = 1000;
 	/* Remove compiler warnings about unused parameters. */
 	( void ) pvParam;
 
-	for( ; ; )
+	for( ;; )
 	{
 		/* Wait until notified of something to send. */
 		WaitForSingleObject( pvSendEvent, xMaxMSToWait );
@@ -501,14 +598,8 @@ const DWORD xMaxMSToWait = 1000;
 		while( uxStreamBufferGetSize( xSendBuffer ) > sizeof( xLength ) )
 		{
 			uxStreamBufferGet( xSendBuffer, 0, ( uint8_t * ) &xLength, sizeof( xLength ), pdFALSE );
-			uxStreamBufferGet( xSendBuffer, 0, ( uint8_t * ) ucBuffer, xLength, pdFALSE );
-
-			/* The packets sent will be written to a C source file,
-			only if 'ipconfigUSE_DUMP_PACKETS' is defined.
-			Otherwise, there is no action. */
-			iptraceDUMP_PACKET( ucBuffer, xLength, pdFALSE );
-
-			if( pcap_sendpacket( pxOpenedInterfaceHandle, ucBuffer, xLength ) != 0 )
+			uxStreamBufferGet( xSendBuffer, 0, ( uint8_t* ) ucBuffer, xLength, pdFALSE );
+			if( pcap_sendpacket( pxOpenedInterfaceHandle, ucBuffer, xLength  ) != 0 )
 			{
 				ulWinPCAPSendFailures++;
 			}
@@ -517,70 +608,34 @@ const DWORD xMaxMSToWait = 1000;
 }
 /*-----------------------------------------------------------*/
 
-static BaseType_t xPacketBouncedBack( const uint8_t *pucBuffer )
-{
-EthernetHeader_t *pxEtherHeader;
-BaseType_t xResult;
-
-	pxEtherHeader = ( EthernetHeader_t * ) pucBuffer;
-
-	if( memcmp( ucMACAddress, pxEtherHeader->xSourceAddress.ucBytes, ipMAC_ADDRESS_LENGTH_BYTES ) == 0 )
-	{
-		FreeRTOS_printf( ( "Bounced back: %02x:%02x:%02x:%02x:%02x:%02x\n",
-						   pxEtherHeader->xSourceAddress.ucBytes[ 0 ],
-						   pxEtherHeader->xSourceAddress.ucBytes[ 1 ],
-						   pxEtherHeader->xSourceAddress.ucBytes[ 2 ],
-						   pxEtherHeader->xSourceAddress.ucBytes[ 3 ],
-						   pxEtherHeader->xSourceAddress.ucBytes[ 4 ],
-						   pxEtherHeader->xSourceAddress.ucBytes[ 5 ] ) );
-		xResult = pdTRUE;
-	}
-	else
-	{
-		xResult = pdFALSE;
-	}
-
-	return xResult;
-}
-/*-----------------------------------------------------------*/
-
 static void prvInterruptSimulatorTask( void *pvParameters )
 {
-	struct pcap_pkthdr xHeader;
-	static struct pcap_pkthdr *pxHeader;
-	const uint8_t *pucPacketData;
-	uint8_t ucRecvBuffer[ ipconfigNETWORK_MTU + ipSIZE_OF_ETH_HEADER ];
-	NetworkBufferDescriptor_t *pxNetworkBuffer;
-	IPStackEvent_t xRxEvent = { eNetworkRxEvent, NULL };
-	eFrameProcessingResult_t eResult;
+struct pcap_pkthdr xHeader;
+static struct pcap_pkthdr *pxHeader;
+const uint8_t *pucPacketData;
+uint8_t ucRecvBuffer[ ipconfigNETWORK_MTU + ipSIZE_OF_ETH_HEADER ];
+NetworkBufferDescriptor_t *pxNetworkBuffer;
+IPStackEvent_t xRxEvent = { eNetworkRxEvent, NULL };
+eFrameProcessingResult_t eResult;
 
 	/* Remove compiler warnings about unused parameters. */
 	( void ) pvParameters;
 
-	for( ; ; )
+	for( ;; )
 	{
 		/* Does the circular buffer used to pass data from the Win32 thread that
 		handles WinPCAP Rx into the FreeRTOS simulator contain another packet? */
 		if( uxStreamBufferGetSize( xRecvBuffer ) > sizeof( xHeader ) )
 		{
 			/* Get the next packet. */
-			uxStreamBufferGet( xRecvBuffer, 0, ( uint8_t * ) &xHeader, sizeof( xHeader ), pdFALSE );
-			uxStreamBufferGet( xRecvBuffer, 0, ( uint8_t * ) ucRecvBuffer, ( size_t ) xHeader.len, pdFALSE );
+			uxStreamBufferGet( xRecvBuffer, 0, (uint8_t*)&xHeader, sizeof( xHeader ), pdFALSE );
+			uxStreamBufferGet( xRecvBuffer, 0, (uint8_t*)ucRecvBuffer, ( size_t ) xHeader.len, pdFALSE );
 			pucPacketData = ucRecvBuffer;
 			pxHeader = &xHeader;
 
 			iptraceNETWORK_INTERFACE_RECEIVE();
 
-			/* Check for minimal size. */
-			if( pxHeader->len >= sizeof( EthernetHeader_t ) )
-			{
-				eResult = ipCONSIDER_FRAME_FOR_PROCESSING( pucPacketData );
-			}
-			else
-			{
-				eResult = eReleaseBuffer;
-			}
-
+			eResult = ipCONSIDER_FRAME_FOR_PROCESSING( pucPacketData );
 			if( eResult == eProcessBuffer )
 			{
 				/* Will the data fit into the frame buffer? */
@@ -591,21 +646,28 @@ static void prvInterruptSimulatorTask( void *pvParameters )
 					is ok to call the task level function here, but note that
 					some buffer implementations cannot be called from a real
 					interrupt. */
-					if( xPacketBouncedBack( pucPacketData ) == pdFALSE )
-					{
-						pxNetworkBuffer = pxGetNetworkBufferWithDescriptor( pxHeader->len, 0 );
-					}
-					else
-					{
-						pxNetworkBuffer = NULL;
-					}
+					pxNetworkBuffer = pxGetNetworkBufferWithDescriptor( pxHeader->len, 0 );
 
 					if( pxNetworkBuffer != NULL )
 					{
 						memcpy( pxNetworkBuffer->pucEthernetBuffer, pucPacketData, pxHeader->len );
 						pxNetworkBuffer->xDataLength = ( size_t ) pxHeader->len;
 
-						#if ( niDISRUPT_PACKETS == 1 )
+						/* This single real interface in used to create multiple
+						virtual interfaces by accessing the raw Ethernet data.
+						Use the MAC address of the received frame (which is at
+						the start of the Ethernet data) to look up which of the
+						virtual interfaces this packet is for. */
+						pxNetworkBuffer->pxInterface = prvFindVirtualInterface( pucPacketData );
+
+						/* If a broadcast or multicast MAC address was used then
+						an interface will not have been found. */
+						if( pxNetworkBuffer->pxInterface != NULL )
+						{
+							pxNetworkBuffer->pxEndPoint = pxNetworkBuffer->pxInterface->pxEndPoint; /*_RB_ I'm not sure what I'm supposed to fill in here.  The SAM driver completes pxInterface, but prvProcessEthernetPacket() checks pxEndPoint. */
+						}
+
+						#if( niDISRUPT_PACKETS == 1 )
 						{
 							pxNetworkBuffer = vRxFaultInjection( pxNetworkBuffer, pucPacketData );
 						}
@@ -659,13 +721,39 @@ static void prvInterruptSimulatorTask( void *pvParameters )
 }
 /*-----------------------------------------------------------*/
 
-static const char * prvRemoveSpaces( char *pcBuffer,
-									 int aBuflen,
-									 const char *pcMessage )
+static NetworkInterface_t *prvFindVirtualInterface( const uint8_t *pucMACAddressBytes )
 {
-char *pcTarget = pcBuffer;
+BaseType_t x;
+NetworkInterface_t *pxReturn = NULL;
 
-	/* Utility function used to format messages being printed only. */
+	for( x = 0; x < ipconfigMULTI_INTERFACE; x++ )
+	{
+		if( pxVirtualNetworkInterefaces[ x ] == NULL )
+		{
+			/* No more interfaces are defined. */
+			break;
+		}
+
+		configASSERT( pxVirtualNetworkInterefaces[ x ]->pxEndPoint );
+
+		/* Does the MAC address of this interface match the MAC address passed
+		in pucMACAddressBytes. */
+		if( memcmp( ( void * ) pucMACAddressBytes, ( void * ) pxVirtualNetworkInterefaces[ x ]->pxEndPoint->xMACAddress.ucBytes, ipMAC_ADDRESS_LENGTH_BYTES ) == 0 )
+		{
+			pxReturn = pxVirtualNetworkInterefaces[ x ];
+			break;
+		}
+	}
+
+	return pxReturn;
+}
+/*-----------------------------------------------------------*/
+
+static const char *prvRemoveSpaces( char *pcBuffer, int aBuflen, const char *pcMessage )
+{
+	char *pcTarget = pcBuffer;
+
+	/* Utility function used to for map messages being printed only. */
 	while( ( *pcMessage != 0 ) && ( pcTarget < ( pcBuffer + aBuflen - 1 ) ) )
 	{
 		*( pcTarget++ ) = *pcMessage;
@@ -687,3 +775,5 @@ char *pcTarget = pcBuffer;
 
 	return pcBuffer;
 }
+/*-----------------------------------------------------------*/
+
