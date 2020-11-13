@@ -116,7 +116,7 @@ from the FreeRTOSIPConfig.h configuration header file. */
 	#error ipconfigNETWORK_MTU must be at least 46.
 #endif
 
-#if ( (ipconfigTCP_MSS + ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_TCP_HEADER ) > ipconfigNETWORK_MTU)
+#if ( (ipconfigTCP_MSS + ipSIZE_OF_IP_HEADER_IPv4 + ipSIZE_OF_TCP_HEADER ) > ipconfigNETWORK_MTU)
 	#error The ipconfigTCP_MSS setting in FreeRTOSIPConfig.h is too large.
 #endif
 

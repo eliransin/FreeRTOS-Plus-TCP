@@ -51,6 +51,7 @@ extern "C" {
 #endif
 
 /* Application level configuration options. */
+#include "FreeRTOS_IP_Constants.h"
 #include "FreeRTOSIPConfig.h"
 #include "FreeRTOSIPConfigDefaults.h"
 #include "FreeRTOS_Sockets.h"

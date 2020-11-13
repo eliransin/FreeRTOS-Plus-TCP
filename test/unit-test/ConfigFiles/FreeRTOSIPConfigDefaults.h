@@ -366,7 +366,7 @@ from the FreeRTOSIPConfig.h configuration header file. */
 #endif
 
 #ifndef ipconfigTCP_MSS
-	#define ipconfigTCP_MSS    ( ipconfigNETWORK_MTU - ipSIZE_OF_IPv4_HEADER - ipSIZE_OF_TCP_HEADER )
+	#define ipconfigTCP_MSS    ( ipconfigNETWORK_MTU - ipSIZE_OF_IP_HEADER_IPv4 - ipSIZE_OF_TCP_HEADER )
 #endif
 
 /* Each TCP socket has circular stream buffers for Rx and Tx, which

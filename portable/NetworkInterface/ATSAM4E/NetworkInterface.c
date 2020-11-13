@@ -428,7 +428,7 @@ ProtocolPacket_t *xProtPacket = ( ProtocolPacket_t * ) apBuffer;
 
 		/* Calculate the IP header checksum. */
 		pxIPHeader->usHeaderChecksum = 0x00;
-		pxIPHeader->usHeaderChecksum = usGenerateChecksum( 0U, ( uint8_t * ) &( pxIPHeader->ucVersionHeaderLength ), ipSIZE_OF_IPv4_HEADER );
+		pxIPHeader->usHeaderChecksum = usGenerateChecksum( 0U, ( uint8_t * ) &( pxIPHeader->ucVersionHeaderLength ), ipSIZE_OF_IP_HEADER_IPv4 );
 		pxIPHeader->usHeaderChecksum = ~FreeRTOS_htons( pxIPHeader->usHeaderChecksum );
 
 		/* Calculate the TCP checksum for an outgoing packet. */
