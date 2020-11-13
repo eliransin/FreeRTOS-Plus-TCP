@@ -61,6 +61,7 @@ extern "C" {
 #endif
 
 /* Event bit definitions are required by the select functions. */
+#include "FreeRTOS.h"
 #include "event_groups.h"
 
 #ifndef INC_FREERTOS_H

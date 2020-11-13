@@ -385,7 +385,7 @@ uint8_t ucMinAgeFound = 0U;
 /*-----------------------------------------------------------*/
 
 #if( ipconfigUSE_ARP_REVERSED_LOOKUP == 1 )
-	eARPLookupResult_t eARPGetCacheEntryByMac( MACAddress_t * const pxMACAddress, uint32_t *pulIPAddress )
+	eARPLookupResult_t eARPGetCacheEntryByMac( MACAddress_t * const pxMACAddress, uint32_t *pulIPAddress, struct xNetworkInterface **ppxInterface )
 	{
 	BaseType_t x;
 	eARPLookupResult_t eReturn = eARPCacheMiss;
@@ -398,6 +398,7 @@ uint8_t ucMinAgeFound = 0U;
 			if( memcmp( pxMACAddress->ucBytes, xARPCache[ x ].xMACAddress.ucBytes, sizeof( MACAddress_t ) ) == 0 )
 			{
 				*pulIPAddress = xARPCache[ x ].ulIPAddress;
+				*ppxInterface = xARPCache[ x ].pxInterface;
 				eReturn = eARPCacheHit;
 				break;
 			}
