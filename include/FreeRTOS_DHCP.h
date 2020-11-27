@@ -97,6 +97,7 @@ struct xDHCP_DATA
 	/* Maintains the DHCP state machine state. */
 	eDHCPState_t eDHCPState;
 	Socket_t xDHCPSocket;
+	uint32_t xDHCPSocketUserCount;
 };
 
 typedef struct xDHCP_DATA DHCPData_t;

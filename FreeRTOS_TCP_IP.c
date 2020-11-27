@@ -832,7 +832,7 @@ FreeRTOS_printf( ( "prvTCPReturnPacket: No pxEndPoint yet???\n" ) );
 
 	if( pxNetworkBuffer != NULL )
 	{
-	NetworkInterface_t *pxInterface;
+		NetworkInterface_t *pxInterface;
 
 		pxEthernetHeader = ( EthernetHeader_t * ) ( pxNetworkBuffer->pucEthernetBuffer );
 

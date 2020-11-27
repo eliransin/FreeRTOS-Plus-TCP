@@ -228,8 +228,8 @@ typedef struct xDHCPMessage_IPv6 DHCPMessage_IPv6_t;
 	#define LINK_LAYER_NETMASK_3	0
 #endif
 
-static Socket_t xDHCPSocket;
-static BaseType_t xDHCPSocketUserCount;
+//static Socket_t xDHCPSocket;
+//static BaseType_t xDHCPSocketUserCount;
 
 /*
  * Generate a DHCP discover message and send it on the DHCP socket.
@@ -285,7 +285,7 @@ BaseType_t xIsDHCPSocket( Socket_t xSocket )
 {
 BaseType_t xReturn;
 
-	if( xDHCPSocket == xSocket )
+	if( ((FreeRTOS_Socket_t*)xSocket)->pxEndPoint->xDHCPData.xDHCPSocket == xSocket )
 	{
 		xReturn = pdTRUE;
 	}
@@ -320,17 +320,18 @@ BaseType_t xReturn;
 void vDHCPProcess( BaseType_t xReset, NetworkEndPoint_t *pxEndPoint )
 {
 	/* If there is a socket, check for incoming messasges first. */
-	if( xDHCPSocket != NULL )
+	if (( pxEndPoint != NULL ) && (pxEndPoint->xDHCPData.xDHCPSocket != NULL))
 	{
-	uint8_t *pucUDPPayload;
-	DHCPMessage_IPv4_t *pxDHCPMessage;
-	BaseType_t lBytes;
-
+		uint8_t *pucUDPPayload;
+		DHCPMessage_IPv4_t *pxDHCPMessage;
+		BaseType_t lBytes;
+	
 		for( ;; )
-		{
-		NetworkEndPoint_t *pxIterator = NULL;
-			/* Peek the next UDP message. */
-			lBytes = FreeRTOS_recvfrom( xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY | FREERTOS_MSG_PEEK, NULL, NULL );
+		{			
+			if(pxEndPoint==NULL) break;
+			NetworkEndPoint_t *pxIterator = NULL;
+			/* Peek the next UDP message. */			
+			lBytes = FreeRTOS_recvfrom( pxEndPoint->xDHCPData.xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY | FREERTOS_MSG_PEEK, NULL, NULL );
 			if( lBytes <= 0 )
 			{
 				if( ( lBytes < 0 ) && ( lBytes != -pdFREERTOS_ERRNO_EAGAIN ) )
@@ -383,7 +384,7 @@ void vDHCPProcess( BaseType_t xReset, NetworkEndPoint_t *pxEndPoint )
 			else
 			{
 				/* Target not found, fetch the message and delete it. */
-				lBytes = FreeRTOS_recvfrom( xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY, NULL, NULL );
+				lBytes = FreeRTOS_recvfrom( pxEndPoint->xDHCPData.xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY, NULL, NULL );
 				if( lBytes > 0 )
 				{
 					/* Remove it now, destination not found. */
@@ -431,7 +432,7 @@ BaseType_t xGivingUp = pdFALSE;
 				pxEndPoint->ulIPAddress = 0UL;
 
 				/* Send the first discover request. */
-				if( xDHCPSocket != NULL )
+				if( pxEndPoint->xDHCPData.xDHCPSocket != NULL )
 				{
 					pxEndPoint->xDHCPData.xDHCPTxTime = xTaskGetTickCount();
 					prvSendDHCPDiscover( pxEndPoint );
@@ -545,7 +546,7 @@ BaseType_t xGivingUp = pdFALSE;
 				pxEndPoint->ulIPAddress = pxEndPoint->xDHCPData.ulOfferedIPAddress;
 
 				/* Setting the 'local' broadcast address, something like 192.168.1.255' */
-				xNetworkAddressing.ulBroadcastAddress = pxEndPoint->xDHCPData.ulOfferedIPAddress |  ~xNetworkAddressing.ulNetMask;
+				xNetworkAddressing.ulBroadcastAddress = pxEndPoint->xDHCPData.ulOfferedIPAddress |  ~xNetworkAddressing.ulNetMask;				
 				pxEndPoint->ulBroadcastAddress = pxEndPoint->xDHCPData.ulOfferedIPAddress | ~( pxEndPoint->ulNetMask );
 
 				pxEndPoint->xDHCPData.eDHCPState = eLeasedAddress;
@@ -633,7 +634,7 @@ BaseType_t xGivingUp = pdFALSE;
 			/* Resend the request at the appropriate time to renew the lease. */
 			prvCreateDHCPSocket( pxEndPoint );
 
-			if( xDHCPSocket != NULL )
+			if( pxEndPoint->xDHCPData.xDHCPSocket != NULL )
 			{
 				pxEndPoint->xDHCPData.xDHCPTxTime = xTaskGetTickCount();
 				pxEndPoint->xDHCPData.xDHCPTxPeriod = dhcpINITIAL_DHCP_TX_PERIOD;
@@ -681,24 +682,24 @@ BaseType_t xGivingUp = pdFALSE;
 
 static void prvCloseDHCPSocket( NetworkEndPoint_t *pxEndPoint )
 {
-	if( (pxEndPoint->xDHCPData.xDHCPSocket == NULL ) || ( pxEndPoint->xDHCPData.xDHCPSocket != xDHCPSocket ) )
+	if(pxEndPoint->xDHCPData.xDHCPSocket == NULL )
 	{
 		/* the socket can not be closed. */
 	}
-	else if( xDHCPSocketUserCount > 0 )
-	{
-		xDHCPSocketUserCount--;
-		if( xDHCPSocketUserCount == 0 )
+	else
+	{	
+		pxEndPoint->xDHCPData.xDHCPSocketUserCount--;	
+		if( pxEndPoint->xDHCPData.xDHCPSocketUserCount == 0 )
 		{
-			FreeRTOS_closesocket( xDHCPSocket );
-			xDHCPSocket = NULL;
+			FreeRTOS_closesocket( pxEndPoint->xDHCPData.xDHCPSocket );
+			pxEndPoint->xDHCPData.xDHCPSocket = NULL;
 		}
 		pxEndPoint->xDHCPData.xDHCPSocket = NULL;
 	}
 FreeRTOS_printf( ("DHCP-socket[%02x-%02x]: closed, user count %d\n",
 	pxEndPoint->xMACAddress.ucBytes[ 4 ],
 	pxEndPoint->xMACAddress.ucBytes[ 5 ],
-	xDHCPSocketUserCount ) );
+	pxEndPoint->xDHCPData.xDHCPSocketUserCount ) );
 }
 
 static void prvCreateDHCPSocket( NetworkEndPoint_t *pxEndPoint )
@@ -707,25 +708,27 @@ struct freertos_sockaddr xAddress;
 BaseType_t xReturn;
 TickType_t xTimeoutTime = ( TickType_t ) 0;
 
-	if( ( xDHCPSocket != NULL ) && ( pxEndPoint->xDHCPData.xDHCPSocket == xDHCPSocket ) )
+	if(  pxEndPoint->xDHCPData.xDHCPSocket != NULL )
 	{
 		/* the socket is still valid. */
+		pxEndPoint->xDHCPData.xDHCPSocketUserCount++;
 	}
-	else if( xDHCPSocket == NULL ) /* Create the socket, if it has not already been created. */
+	else if( pxEndPoint->xDHCPData.xDHCPSocket == NULL ) /* Create the socket, if it has not already been created. */
 	{
-		xDHCPSocket = FreeRTOS_socket( FREERTOS_AF_INET, FREERTOS_SOCK_DGRAM, FREERTOS_IPPROTO_UDP );
-		configASSERT( ( xDHCPSocket != FREERTOS_INVALID_SOCKET ) );
-
+		pxEndPoint->xDHCPData.xDHCPSocket = FreeRTOS_socket( FREERTOS_AF_INET, FREERTOS_SOCK_DGRAM, FREERTOS_IPPROTO_UDP );
+		configASSERT( ( pxEndPoint->xDHCPData.xDHCPSocket != FREERTOS_INVALID_SOCKET ) );
+		((FreeRTOS_Socket_t*)pxEndPoint->xDHCPData.xDHCPSocket)->pxEndPoint = pxEndPoint;
 		/* Ensure the Rx and Tx timeouts are zero as the DHCP executes in the
 		context of the IP task. */
-		FreeRTOS_setsockopt( xDHCPSocket, 0, FREERTOS_SO_RCVTIMEO, ( void * ) &xTimeoutTime, sizeof( TickType_t ) );
-		FreeRTOS_setsockopt( xDHCPSocket, 0, FREERTOS_SO_SNDTIMEO, ( void * ) &xTimeoutTime, sizeof( TickType_t ) );
+		FreeRTOS_setsockopt( pxEndPoint->xDHCPData.xDHCPSocket, 0, FREERTOS_SO_RCVTIMEO, ( void * ) &xTimeoutTime, sizeof( TickType_t ) );
+		FreeRTOS_setsockopt( pxEndPoint->xDHCPData.xDHCPSocket, 0, FREERTOS_SO_SNDTIMEO, ( void * ) &xTimeoutTime, sizeof( TickType_t ) );
 
 		/* Bind to the standard DHCP client port. */
 		xAddress.sin_port = dhcpCLIENT_PORT_IPv4;
-		xReturn = vSocketBind( xDHCPSocket, &xAddress, sizeof( xAddress ), pdFALSE );
-		configASSERT( xReturn == 0 );
-		xDHCPSocketUserCount = 1;
+		xReturn = vSocketBind( pxEndPoint->xDHCPData.xDHCPSocket, &xAddress, sizeof( xAddress ), pdFALSE );
+		((FreeRTOS_Socket_t*)pxEndPoint->xDHCPData.xDHCPSocket)->pxEndPoint = pxEndPoint;
+		pxEndPoint->xDHCPData.xDHCPSocketUserCount++;
+		configASSERT( xReturn == 0 );		
 		FreeRTOS_printf( ("DHCP-socket[%02x-%02x]: DHCP Socket Create\n",
 			pxEndPoint->xMACAddress.ucBytes[ 4 ],
 			pxEndPoint->xMACAddress.ucBytes[ 5 ] ) );
@@ -733,15 +736,11 @@ TickType_t xTimeoutTime = ( TickType_t ) 0;
 		/* Remove compiler warnings if configASSERT() is not defined. */
 		( void ) xReturn;
 	}
-	else
-	{
-		xDHCPSocketUserCount++;
-	}
-	pxEndPoint->xDHCPData.xDHCPSocket = xDHCPSocket;
+	
 	FreeRTOS_printf( ("DHCP-socket[%02x-%02x]: opened, user count %d\n",
 		pxEndPoint->xMACAddress.ucBytes[ 4 ],
 		pxEndPoint->xMACAddress.ucBytes[ 5 ],
-		xDHCPSocketUserCount ) );
+		pxEndPoint->xDHCPData.xDHCPSocketUserCount ) );
 }
 /*-----------------------------------------------------------*/
 
@@ -782,7 +781,7 @@ uint32_t ulProcessed, ulParameter;
 BaseType_t xReturn = pdFALSE;
 const uint32_t ulMandatoryOptions = 2; /* DHCP server address, and the correct DHCP message type must be present in the options. */
 
-	lBytes = FreeRTOS_recvfrom( xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY, NULL, NULL );
+	lBytes = FreeRTOS_recvfrom( pxEndPoint->xDHCPData.xDHCPSocket, ( void * ) &pucUDPPayload, 0, FREERTOS_ZERO_COPY, NULL, NULL );
 	if( lBytes != -pdFREERTOS_ERRNO_EAGAIN )
 	{
 		FreeRTOS_printf( ( "prvProcessDHCPReplies[%02x-%02x]: lBytes %ld\n",
@@ -1122,7 +1121,7 @@ size_t xOptionsLength = sizeof( ucDHCPRequestOptions );
 		FreeRTOS_ntohl( pxEndPoint->xDHCPData.ulOfferedIPAddress ) ) );
 	iptraceSENDING_DHCP_REQUEST();
 
-	if( FreeRTOS_sendto( xDHCPSocket, pucUDPPayloadBuffer, ( sizeof( DHCPMessage_IPv4_t ) + xOptionsLength ), FREERTOS_ZERO_COPY, &xAddress, sizeof( xAddress ) ) == 0 )
+	if( FreeRTOS_sendto(pxEndPoint->xDHCPData.xDHCPSocket, pucUDPPayloadBuffer, ( sizeof( DHCPMessage_IPv4_t ) + xOptionsLength ), FREERTOS_ZERO_COPY, &xAddress, sizeof( xAddress ) ) == 0 )
 	{
 		/* The packet was not successfully queued for sending and must be
 		returned to the stack. */
@@ -1152,7 +1151,7 @@ size_t xOptionsLength = sizeof( ucDHCPDiscoverOptions );
 		pxEndPoint->xMACAddress.ucBytes[ 5 ] ) );
 	iptraceSENDING_DHCP_DISCOVER();
 
-	if( FreeRTOS_sendto( xDHCPSocket, pucUDPPayloadBuffer, ( sizeof( DHCPMessage_IPv4_t ) + xOptionsLength ), FREERTOS_ZERO_COPY, &xAddress, sizeof( xAddress ) ) == 0 )
+	if( FreeRTOS_sendto( pxEndPoint->xDHCPData.xDHCPSocket, pucUDPPayloadBuffer, ( sizeof( DHCPMessage_IPv4_t ) + xOptionsLength ), FREERTOS_ZERO_COPY, &xAddress, sizeof( xAddress ) ) == 0 )
 	{
 		/* The packet was not successfully queued for sending and must be
 		returned to the stack. */
