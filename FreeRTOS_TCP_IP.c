@@ -724,7 +724,8 @@ int32_t xSendLength;
 /*_RB_ consider how this function can be made to appear cleaner to the eye and also rename as it is not just used for returning packets. */
 static void prvTCPReturnPacket( FreeRTOS_Socket_t *pxSocket, NetworkBufferDescriptor_t *pxNetworkBuffer, uint32_t ulLen, BaseType_t xReleaseAfterSend )
 {
-ProtocolHeaders_t *pxProtocolHeaders;
+/*Initializing to NULL because of gcc complaining about the vaiable being used uninitialized.*/
+ProtocolHeaders_t *pxProtocolHeaders = NULL;
 #if( ipconfigUSE_IPv6 != 0 )
 	IPHeader_IPv6_t *pxIPHeader_IPv6;
 #endif
