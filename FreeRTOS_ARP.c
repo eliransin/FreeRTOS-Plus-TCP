@@ -642,7 +642,7 @@ NetworkInterface_t *pxInterface;
 		{
 			pxEndPoint = FreeRTOS_InterfaceEndPointOnNetMask( pxInterface, ulIPAddress, 26 );
 		}
-		FreeRTOS_printf( ( "OutputARPRequest: remote IP = %lxip end-point = %lxip\n",
+		FreeRTOS_printf( ( "OutputARPRequest: remote IP = ip: %x end-point = ip: %x\n",
 			FreeRTOS_ntohl( ulIPAddress ),
 			FreeRTOS_ntohl( pxEndPoint != 0 ? pxEndPoint->ulIPAddress : 0x0ul ) ) );
 

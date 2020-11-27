@@ -655,7 +655,7 @@ BaseType_t xResult = 0;
 				if( pxFTPCommand->ucCommandType == ECMD_PORT )
 				{
 					uxPort = prvParsePortData( pcRestCommand, &ulIPAddress );
-					FreeRTOS_printf( ("       PORT %lxip:%ld\n", ulIPAddress, uxPort ) );
+					FreeRTOS_printf( ("       PORT ip: %x:%ld\n", ulIPAddress, uxPort ) );
 				}
 				else
 				{
@@ -1456,7 +1456,7 @@ UBaseType_t uxReturnPort = 0;
 				{
 					sscanf( pcPort, "%lu", &uxReturnPort );
 				}
-				FreeRTOS_printf( ( "prvParseEprtData: IPv4 rc %d %lxip port %lu\n", rc, FreeRTOS_htonl( *pulIPAddress ), uxReturnPort ) );
+				FreeRTOS_printf( ( "prvParseEprtData: IPv4 rc %d ip: %x port %lu\n", rc, FreeRTOS_htonl( *pulIPAddress ), uxReturnPort ) );
 			}
 			else if( pcType[ 0 ] == '2' )
 			{
@@ -1840,7 +1840,7 @@ size_t uxFileSize;
 		} else {
 		BaseType_t xLength;
 
-			xLength = snprintf( pcCOMMAND_BUFFER, sizeof( pcCOMMAND_BUFFER ), "150%cOpening data connection to %lxip:%u\r\n%s",
+			xLength = snprintf( pcCOMMAND_BUFFER, sizeof( pcCOMMAND_BUFFER ), "150%cOpening data connection to ip: %x:%u\r\n%s",
 				pxClient->xTransType == TMODE_ASCII ? '-' : ' ',
 				pxClient->ulClientIPv4,
 				pxClient->usClientPort,

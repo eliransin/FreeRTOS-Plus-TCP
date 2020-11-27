@@ -804,7 +804,7 @@ const ProtocolPacket_t *pxProtPacket = ( const ProtocolPacket_t * )pcBuffer;
 			( ulDestinationIPAddress != ipLLMNR_IP_ADDR ) &&
 		#endif
 			( *ipLOCAL_IP_ADDRESS_POINTER != 0 ) ) {
-			FreeRTOS_printf( ( "Drop IP %lxip\n", FreeRTOS_ntohl( ulDestinationIPAddress ) ) );
+			FreeRTOS_printf( ( "Drop IP ip: %x\n", FreeRTOS_ntohl( ulDestinationIPAddress ) ) );
 			return pdFALSE;
 		}
 

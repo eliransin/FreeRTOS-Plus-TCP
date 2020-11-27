@@ -175,7 +175,7 @@ NetworkEndPoint_t *pxIterator = NULL;
 		pxIterator->pxNext = pxEndPoint;
 	}
 
-	FreeRTOS_printf( ( "FreeRTOS_AddEndPoint: MAC: %02x-%02x IPv4: %lxip\n",
+	FreeRTOS_printf( ( "FreeRTOS_AddEndPoint: MAC: %02x-%02x IPv4: ip: %x\n",
 		pxEndPoint->xMACAddress.ucBytes[ 4 ],
 		pxEndPoint->xMACAddress.ucBytes[ 5 ],
 		FreeRTOS_ntohl( pxEndPoint->ulDefaultIPAddress ) ) );
@@ -370,12 +370,12 @@ NetworkEndPoint_t *pxDefault = NULL;
 		if( pxDefault != NULL )
 		{
 			pxEndPoint = pxDefault;
-			FreeRTOS_printf( ( "FreeRTOS_FindEndPointOnNetMask: No match for %lxip using %lxip\n",
+			FreeRTOS_printf( ( "FreeRTOS_FindEndPointOnNetMask: No match for ip: %x using ip: %x\n",
 				FreeRTOS_ntohl( ulIPAddress ), FreeRTOS_ntohl( pxDefault->ulIPAddress ) ) );
 		}
 		else
 		{
-			FreeRTOS_printf( ( "FreeRTOS_FindEndPointOnNetMask: No match for %lxip\n", FreeRTOS_ntohl( ulIPAddress ) ) );
+			FreeRTOS_printf( ( "FreeRTOS_FindEndPointOnNetMask: No match for ip: %x\n", FreeRTOS_ntohl( ulIPAddress ) ) );
 		}
 	}
 

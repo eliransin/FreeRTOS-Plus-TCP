@@ -811,7 +811,7 @@ int32_t lReturn = 0;
 FreeRTOS_Socket_t *pxSocket;
 
 	pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
-
+	FreeRTOS_printf(("Sendto with socket on endpoint %p",pxSocket->pxEndPoint));
 	/* The function prototype is designed to maintain the expected Berkeley
 	sockets standard, but this implementation does not use all the
 	parameters. */
@@ -1342,7 +1342,7 @@ NetworkBufferDescriptor_t *pxNetworkBuffer;
 			else
 			#endif /* ipconfigUSE_IPv6 */
 			{
-				snprintf( ucReturn, sizeof( ucReturn ), "%lxip port %u to %lxip port %u",
+				snprintf( ucReturn, sizeof( ucReturn ), "ip: %x port %u to ip: %x port %u",
 					pxSocket->ulLocalAddress,
 					pxSocket->usLocalPort,
 					pxSocket->u.xTCP.ulRemoteIP,
@@ -1363,7 +1363,7 @@ NetworkBufferDescriptor_t *pxNetworkBuffer;
 			else
 			#endif /* ipconfigUSE_IPv6 */
 			{
-				snprintf( ucReturn, sizeof( ucReturn ), "%lxip port %u",
+				snprintf( ucReturn, sizeof( ucReturn ), "ip: %x port %u",
 					pxSocket->ulLocalAddress,
 					pxSocket->usLocalPort );
 			}
@@ -2252,7 +2252,7 @@ void vSocketWakeUpUser( FreeRTOS_Socket_t *pxSocket )
 				else
 #endif /* ipconfigUSE_IPv6 */
 				{
-					FreeRTOS_printf( ( "FreeRTOS_connect: %u to %lxip:%u\n",
+					FreeRTOS_printf( ( "FreeRTOS_connect: %u to ip: %x:%u\n",
 						pxSocket->usLocalPort, FreeRTOS_ntohl( pxAddress->sin_addr ), FreeRTOS_ntohs( pxAddress->sin_port ) ) );
 				}
 
@@ -2894,7 +2894,7 @@ void vSocketWakeUpUser( FreeRTOS_Socket_t *pxSocket )
 				{
 					if( ipconfigTCP_MAY_LOG_PORT( pxSocket->usLocalPort ) != pdFALSE )
 					{
-						FreeRTOS_debug_printf( ( "FreeRTOS_send: %u -> %lxip:%d: no space\n",
+						FreeRTOS_debug_printf( ( "FreeRTOS_send: %u -> ip: %x:%d: no space\n",
 							pxSocket->usLocalPort,
 							pxSocket->u.xTCP.ulRemoteIP,
 							pxSocket->u.xTCP.usRemotePort ) );
@@ -3746,7 +3746,7 @@ void vSocketWakeUpUser( FreeRTOS_Socket_t *pxSocket )
 				else
 				#endif
 				{
-					snprintf( pcRemoteIp, sizeof( pcRemoteIp ), "%lxip", pxSocket->u.xTCP.ulRemoteIP );
+					snprintf( pcRemoteIp, sizeof( pcRemoteIp ), "ip: %x", pxSocket->u.xTCP.ulRemoteIP );
 				}
 				FreeRTOS_printf( ( "TCP %5d %-*s:%5d %d/%d %-13.13s %6lu %6u%s\n",
 					pxSocket->usLocalPort,		/* Local port on this machine */

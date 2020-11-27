@@ -1848,7 +1848,7 @@ eFrameProcessingResult_t eReturn = eProcessBuffer;
 				/* Or (during DHCP negotiation) we have no IP-address yet? */
 				( *ipLOCAL_IP_ADDRESS_POINTER != 0UL ) ) /* Should this last test (ipLOCAL_IP_ADDRESS_POINTER) be removed now? */
 			{
-FreeRTOS_printf( ( "prvAllowIPPacketIPv4: drop %lxip => %lxip\n", FreeRTOS_ntohl( pxIPHeader->ulDestinationIPAddress ), FreeRTOS_ntohl( ulDestinationIPAddress ) ) );
+FreeRTOS_printf( ( "prvAllowIPPacketIPv4: drop ip: %x => ip: %x\n", FreeRTOS_ntohl( pxIPHeader->ulDestinationIPAddress ), FreeRTOS_ntohl( ulDestinationIPAddress ) ) );
 				/* Packet is not for this node, release it */
 				eReturn = eReleaseBuffer;
 			}
@@ -2415,7 +2415,7 @@ uint8_t ucProtocol;
 	uint16_t usGot, usCalculated;
 		usGot = *pusChecksum;
 		usCalculated = ~usGenerateProtocolChecksum( pucEthernetBuffer, pdTRUE );
-		FreeRTOS_debug_printf( ( "usGenerateProtocolChecksum[%s]: len %ld ID %04X: from %lxip to %lxip cal %04X got %04X\n",
+		FreeRTOS_debug_printf( ( "usGenerateProtocolChecksum[%s]: len %ld ID %04X: from ip: %x to ip: %x cal %04X got %04X\n",
 			pcType,
 			ulLength,
 			FreeRTOS_ntohs( pxIPPacket->xIPHeader.usIdentification ),

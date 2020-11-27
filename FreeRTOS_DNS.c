@@ -452,7 +452,7 @@ TickType_t xIdentifier = ( TickType_t )usIdentifier++;
 		ulIPAddress = FreeRTOS_dnslookup( pcHostName );
 		if( ulIPAddress != 0 )
 		{
-			FreeRTOS_debug_printf( ( "FreeRTOS_gethostbyname: found '%s' in cache: %lxip\n", pcHostName, ulIPAddress ) );
+			FreeRTOS_debug_printf( ( "FreeRTOS_gethostbyname: found '%s' in cache: ip: %x\n", pcHostName, ulIPAddress ) );
 		}
 		else
 		{
@@ -1389,7 +1389,7 @@ TickType_t xTimeoutTime = pdMS_TO_TICKS( 200 );
 
 		if( ( xLookUp == 0 ) || ( *pulIP != 0 ) )
 		{
-			FreeRTOS_debug_printf( ( "prvProcessDNSCache: %s: '%s' @ %lxip\n", xLookUp ? "look-up" : "add", pcName, FreeRTOS_ntohl( *pulIP ) ) );
+			FreeRTOS_debug_printf( ( "prvProcessDNSCache: %s: '%s' @ ip: %x\n", xLookUp ? "look-up" : "add", pcName, FreeRTOS_ntohl( *pulIP ) ) );
 		}
 	}
 

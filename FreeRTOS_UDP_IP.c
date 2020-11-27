@@ -189,7 +189,7 @@ NetworkInterface_t *pxInterface;
 				else
 				{
 					pxNetworkBuffer->pxEndPoint = FreeRTOS_InterfaceEndPointOnNetMask( pxInterface, pxNetworkBuffer->ulIPAddress, 20 );
-					FreeRTOS_printf( ( "vProcessGeneratedUDPPacket: remote IP = %lxip end-point = %lxip\n",
+					FreeRTOS_printf( ( "vProcessGeneratedUDPPacket: remote IP = ip: %x end-point = ip: %x\n",
 						FreeRTOS_htonl( pxNetworkBuffer->ulIPAddress ),
 						FreeRTOS_htonl( pxNetworkBuffer->pxEndPoint != 0 ? pxNetworkBuffer->pxEndPoint->ulIPAddress : 0x0ul ) ) );
 				}

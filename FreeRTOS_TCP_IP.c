@@ -805,7 +805,7 @@ FreeRTOS_printf( ( "prvTCPReturnPacket: No pxEndPoint yet???\n" ) );
 					pxNetworkBuffer->pxEndPoint = FreeRTOS_FindEndPointOnNetMask( pxIPHeader_IPv4->ulDestinationIPAddress, 8 ); /*_RB_ Was FreeRTOS_FindEndPointOnIP() but changed to FreeRTOS_FindEndPointOnNetMask() as it is using the destination address.  I'm confused here as sometimes the addresses are swapped. */
 					if( pxNetworkBuffer->pxEndPoint == NULL )
 					{
-						FreeRTOS_printf( ( "prvTCPReturnPacket: no such end-point %lxip => %lxip\n",
+						FreeRTOS_printf( ( "prvTCPReturnPacket: no such end-point ip: %x => ip: %x\n",
 							FreeRTOS_ntohl( pxIPHeader_IPv4->ulSourceIPAddress ),
 							FreeRTOS_ntohl( pxIPHeader_IPv4->ulDestinationIPAddress ) ) );
 					}
@@ -1149,7 +1149,7 @@ ProtocolHeaders_t *pxProtocolHeaders;
 			{
 				pxSocket->ulLocalAddress = FreeRTOS_ntohl( pxSocket->pxEndPoint->ulIPAddress );
 			}
-			FreeRTOS_printf( ( "prvTCPPrepareConnect: remote IP = %lxip end-point = %lxip\n",
+			FreeRTOS_printf( ( "prvTCPPrepareConnect: remote IP = ip: %x end-point = ip: %x\n",
 				pxSocket->u.xTCP.ulRemoteIP,
 				pxSocket->ulLocalAddress ) );
 		}
@@ -1165,7 +1165,7 @@ ProtocolHeaders_t *pxProtocolHeaders;
 			/* Count the number of times it couldn't find the ARP address. */
 			pxSocket->u.xTCP.ucRepCount++;
 
-			FreeRTOS_debug_printf( ( "ARP for %lxip (using %lxip): rc=%d %02X:%02X:%02X %02X:%02X:%02X\n",
+			FreeRTOS_debug_printf( ( "ARP for ip: %x (using ip: %x): rc=%d %02X:%02X:%02X %02X:%02X:%02X\n",
 				pxSocket->u.xTCP.ulRemoteIP,
 				FreeRTOS_htonl( ulRemoteIP ),
 				eReturned,
@@ -1783,7 +1783,7 @@ BaseType_t bAfter  = ( BaseType_t ) NOW_CONNECTED( eTCPState );					/* Is it con
 			else
 			#endif /* ipconfigUSE_IPv6 */
 			{
-				FreeRTOS_debug_printf( ( "Socket %d -> %lxip port %u State %s -> %s\n",
+				FreeRTOS_debug_printf( ( "Socket %d -> ip: %x port %u State %s -> %s\n",
 					pxSocket->usLocalPort,
 					pxSocket->u.xTCP.ulRemoteIP,
 					pxSocket->u.xTCP.usRemotePort,
@@ -3219,7 +3219,7 @@ BaseType_t xResult = pdPASS;
 		non-active states:  eCLOSED, eCLOSE_WAIT, eFIN_WAIT_2, eCLOSING, or
 		eTIME_WAIT. */
 
-		FreeRTOS_debug_printf( ( "TCP: No active socket on port %d (%lxip:%d)\n", xLocalPort, ulRemoteIP, xRemotePort ) );
+		FreeRTOS_debug_printf( ( "TCP: No active socket on port %d (ip: %x:%d)\n", xLocalPort, ulRemoteIP, xRemotePort ) );
 
 		/* Send a RST to all packets that can not be handled.  As a result
 		the other party will get a ECONN error.  There are two exceptions:
@@ -3251,7 +3251,7 @@ BaseType_t xResult = pdPASS;
 				request. */
 				#if( ipconfigHAS_DEBUG_PRINTF == 1 )
 				{
-				FreeRTOS_debug_printf( ( "TCP: Server can't handle flags: %s from %lxip:%u to port %u\n",
+				FreeRTOS_debug_printf( ( "TCP: Server can't handle flags: %s from ip: %x:%u to port %u\n",
 					prvTCPFlagMeaning( ( UBaseType_t ) ucTCPFlags ), ulRemoteIP, xRemotePort, xLocalPort ) );
 				}
 				#endif /* ipconfigHAS_DEBUG_PRINTF */
@@ -3283,7 +3283,7 @@ BaseType_t xResult = pdPASS;
 			{
 				/* The target socket is not in a listening state, any RST packet
 				will cause the socket to be closed. */
-				FreeRTOS_debug_printf( ( "TCP: RST received from %lxip:%u for %u\n", ulRemoteIP, xRemotePort, xLocalPort ) );
+				FreeRTOS_debug_printf( ( "TCP: RST received from ip: %x:%u for %u\n", ulRemoteIP, xRemotePort, xLocalPort ) );
 				vTCPStateChange( pxSocket, eCLOSED );
 
 				/* The packet cannot be handled. */
@@ -3292,7 +3292,7 @@ BaseType_t xResult = pdPASS;
 			else if( ( ( ucTCPFlags & ipTCP_FLAG_CTRL ) == ipTCP_FLAG_SYN ) && ( pxSocket->u.xTCP.ucTCPState >= eESTABLISHED ) )
 			{
 				/* SYN flag while this socket is already connected. */
-				FreeRTOS_debug_printf( ( "TCP: SYN unexpected from %lxip:%u\n", ulRemoteIP, xRemotePort ) );
+				FreeRTOS_debug_printf( ( "TCP: SYN unexpected from ip: %x:%u\n", ulRemoteIP, xRemotePort ) );
 
 				/* The packet cannot be handled. */
 				xResult = pdFAIL;
@@ -3418,7 +3418,7 @@ FreeRTOS_Socket_t *pxReturn;
 					pxNewSocket->pxEndPoint = pxNetworkBuffer->pxEndPoint;
 					pxNewSocket->ulLocalAddress = FreeRTOS_ntohl( pxNetworkBuffer->pxEndPoint->ulIPAddress );
 				}
-				FreeRTOS_printf( ( "Client socket bound to %lxip:%u\n",
+				FreeRTOS_printf( ( "Client socket bound to ip: %x:%u\n",
 					pxNewSocket->ulLocalAddress,
 					pxNewSocket->usLocalPort ) );
 

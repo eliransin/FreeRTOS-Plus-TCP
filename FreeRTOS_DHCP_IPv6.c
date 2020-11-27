@@ -508,7 +508,7 @@ BaseType_t xGivingUp = pdFALSE;
 			/* Look for acks coming in. */
 			if( ( xDoCheck != pdFALSE ) && ( prvProcessDHCPReplies( dhcpMESSAGE_TYPE_ACK, pxEndPoint ) == pdPASS ) )
 			{
-				FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: acked %lxip\n",
+				FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: acked ip: %x\n",
 					pxEndPoint->xMACAddress.ucBytes[ 4 ],
 					pxEndPoint->xMACAddress.ucBytes[ 5 ],
 					FreeRTOS_ntohl( pxEndPoint->xDHCPData.ulOfferedIPAddress ) ) );
@@ -942,7 +942,7 @@ const uint32_t ulMandatoryOptions = 2; /* DHCP server address, and the correct D
 				{
 					/* HT:endian: used to be network order */
 					pxEndPoint->xDHCPData.ulOfferedIPAddress = pxDHCPMessage->ulYourIPAddress_yiaddr;
-					FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: offer %lxip\n",
+					FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: offer ip: %x\n",
 						pxEndPoint->xMACAddress.ucBytes[ 4 ],
 						pxEndPoint->xMACAddress.ucBytes[ 5 ],
 						FreeRTOS_ntohl( pxEndPoint->xDHCPData.ulOfferedIPAddress ) ) );
@@ -1077,7 +1077,7 @@ size_t xOptionsLength = sizeof( ucDHCPRequestOptions );
 	memcpy( ( void * ) &( pucUDPPayloadBuffer[ dhcpFIRST_OPTION_BYTE_OFFSET + dhcpDHCP_SERVER_IP_ADDRESS_OFFSET ] ),
 		( void * ) &( pxEndPoint->xDHCPData.ulDHCPServerAddress ), sizeof( pxEndPoint->xDHCPData.ulDHCPServerAddress ) );
 
-	FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: Send request %lxip\n",
+	FreeRTOS_printf( ( "vDHCPProcess[%02x-%02x]: Send request ip: %x\n",
 		pxEndPoint->xMACAddress.ucBytes[ 4 ],
 		pxEndPoint->xMACAddress.ucBytes[ 5 ],
 		FreeRTOS_ntohl( pxEndPoint->xDHCPData.ulOfferedIPAddress ) ) );
